@@ -36,10 +36,10 @@ type Config struct {
 
 // DefaultConfig initializes config with default values.
 // When load for BigCache can be predicted in advance then it is better to use custom config.
-func DefaultConfig(eviction time.Duration) Config {
+func DefaultConfig() Config {
 	return Config{
 		Shards:             1024,
-		LifeWindow:         eviction,
+		LifeWindow:         time.Hour * 72, //not actually used
 		CleanWindow:        0,
 		MaxEntriesInWindow: 1000 * 10 * 60,
 		MaxEntrySize:       500,
