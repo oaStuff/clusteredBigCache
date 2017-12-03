@@ -12,4 +12,6 @@ type Stats struct {
 	DelMisses int64
 	// Collisions is a number of happened key-collisions
 	Collisions int64
+
+	EvictCount int64
 }

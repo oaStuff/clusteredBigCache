@@ -38,7 +38,7 @@ type Config struct {
 // When load for BigCache can be predicted in advance then it is better to use custom config.
 func DefaultConfig() Config {
 	return Config{
-		Shards:             1024,
+		Shards:             16,
 		LifeWindow:         time.Hour * 72, //not actually used
 		CleanWindow:        0,
 		MaxEntriesInWindow: 1000 * 10 * 60,

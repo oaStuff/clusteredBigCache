@@ -95,6 +95,8 @@ func (s *cacheShard) set(key string, hashedKey uint64, entry []byte, duration ti
 
 
 func (s *cacheShard) evictDel(key string, hashedKey uint64) (error) {
+	//the lock is held in ttlManager so it is safe to do normal increment here
+	s.stats.EvictCount++
 	return s.__del(key, hashedKey, true)
 }
 
