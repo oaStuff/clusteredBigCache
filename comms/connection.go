@@ -49,6 +49,20 @@ func NewConnection(endpoint string, connectionTimeout time.Duration) (*Connectio
 	return c, nil
 }
 
+func WrapConnection(conn *net.TCPConn) *Connection {
+
+	c := &Connection{}
+	c.conn = conn
+	c.Uid = c.conn.LocalAddr().String()
+	c.Remote = conn.RemoteAddr().String()
+	c.conn.SetKeepAlive(true)
+	c.buffReader = bufio.NewReader(c)
+	c.Usable = true
+	c.writeLock = sync.Mutex{}
+
+	return c
+}
+
 func (c *Connection) SetReadTimeout(timeout time.Duration)  {
 	c.readTimeout = timeout
 }
@@ -66,9 +80,10 @@ func (c *Connection) Read(p []byte) (int, error) {
 	if err != nil {
 		if err == io.EOF {
 			c.Usable = false
-		}
-		if strings.Contains(err.Error(),"timeout"){
-			err = errors.New("i/o timeout")
+		}else {
+			if strings.Contains(err.Error(), "timeout") {
+				err = errors.New("i/o timeout")
+			}
 		}
 	}
 
@@ -105,9 +120,6 @@ func (c *Connection) SendData(data []byte) error {
 //Read size byte of data and return is to the caller
 func (c *Connection) ReadData(size uint, timeout time.Duration) ([]byte, error) {
 
-	done := make(chan bool)
-	defer close(done)
-
 	ret := make([]byte, size)
 	var err error
 
@@ -115,16 +127,25 @@ func (c *Connection) ReadData(size uint, timeout time.Duration) ([]byte, error) 
 	c.SetReadTimeout(timeout)
 	defer c.SetReadTimeout(tmp)
 
-	go func() {
-		_, err = io.ReadFull(c.buffReader, ret)
-		done <- true
-	}()
 
-	select {
-	case <-done:
+	if 0 != timeout {
+		done := make(chan bool)
+		defer close(done)
+
+		go func() {
+			_, err = io.ReadFull(c.buffReader, ret)
+			done <- true
+		}()
+
+		select {
+		case <-done:
+			return ret, err
+		case <-time.After(timeout):
+			return nil, errTimeout
+		}
+	} else {
+		_, err = io.ReadFull(c.buffReader, ret)
 		return ret, err
-	case <-time.After(timeout):
-		return nil, errTimeout
 	}
 }
 
@@ -134,5 +155,7 @@ func (c *Connection) Close()  {
 
 func (c *Connection) Shutdown() {
 	c.conn.Close()
+	c.buffReader = nil
+	c.Usable = false
 }
 

@@ -9,12 +9,12 @@ type ClusterConfig struct {
 }
 
 
-func DefaultClusterConfig(port uint) *ClusterConfig {
+func DefaultClusterConfig() *ClusterConfig {
 	return &ClusterConfig{
 		NodeConfig: cluster.NodeConfig{
 			Join:				false,
 			BindAll:			true,
-			LocalPort:			port,
+			LocalPort:			9911,
 		},
 		ReplicationFactor:	1,
 		WriteAck:			true,
