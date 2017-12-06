@@ -25,6 +25,11 @@ func (cbc *ClusteredBigCache) Start() error {
 	cbc.started = true
 	return nil
 }
+
+func (cbc *ClusteredBigCache) ShutDown()  {
+	cbc.node.ShutDown()
+}
+
 func (cbc *ClusteredBigCache) chcekConfig() {
 	if cbc.config.LocalPort < 1 {
 		panic("Local port can not be zero.")

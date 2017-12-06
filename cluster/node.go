@@ -9,6 +9,7 @@ import (
 	"github.com/oaStuff/clusteredBigCache/comms"
 	"errors"
 	"fmt"
+	"github.com/oaStuff/clusteredBigCache/message"
 )
 
 type NodeConfig struct {
@@ -39,7 +40,7 @@ func NewNode(config *NodeConfig, logger utils.AppLogger) *Node {
 	return &Node{
 		config:			config,
 		cache: 			cache,
-		remoteNodes: 	utils.NewSliceList(),
+		remoteNodes: 	utils.NewSliceList(remoteNodeEqualFunc),
 		logger: 		logger,
 		lock: 			sync.Mutex{},
 	}
@@ -60,6 +61,12 @@ func (node *Node) Start() error  {
 	}
 
 	return nil
+}
+
+func (node *Node) ShutDown()  {
+	for _, v := range node.remoteNodes.Values() {
+		v.(*remoteNode).shutDown("NODe")
+	}
 }
 
 func (node *Node) joinCluster() error {
@@ -98,6 +105,22 @@ func (node *Node) eventRemoteNodeDisconneced(remoteNode *remoteNode)  {
 	node.remoteNodes.Remove(remoteNode.indexInParent)
 }
 
+func (node *Node) eventVerifyRemoteNode(remoteNode *remoteNode, msg message.VerifyMessageRsp) bool {
+	node.lock.Lock()
+	if node.remoteNodes.Contains(remoteNode) {
+		utils.Warn(node.logger, fmt.Sprintf("node already has remote node '%s' so shutdown new connection", remoteNode.config.Id))
+		node.lock.Unlock()			//have to unlock since remoteNode.shutDown() may call *Node back to remove itself
+		remoteNode.shutDown("from node")
+		return false
+	}
+
+	index := node.remoteNodes.Add(remoteNode)
+	remoteNode.indexInParent = index
+	node.lock.Unlock()
+
+	return true
+}
+
 func (node *Node) listen() {
 
 	var err error
@@ -122,6 +145,7 @@ func (node *Node) listen() {
 		remoteNode := newRemoteNode(&remoteNodeConfig{IpAddress:tcpConn.RemoteAddr().String()}, node, node.logger)
 		remoteNode.setState(nodeStateHandshake)
 		remoteNode.setConnection(comms.WrapConnection(tcpConn))
+		utils.Info(node.logger, fmt.Sprintf("new connection from remote '%s'", tcpConn.RemoteAddr().String()))
 		remoteNode.start()
 	}
 	utils.Critical(node.logger, "listening loop terminated unexpectedly due to too many errors")

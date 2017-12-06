@@ -1,17 +1,21 @@
 package utils
 
+
 const (
 	growthFactor = float32(2.0)  // growth by 100%
 	shrinkFactor = float32(0.25) // shrink when size is 25% of capacity (0 means never shrink)
 )
 
+type EqualFunc func(a, b interface{}) bool
+
 type SliceList struct {
+	eFunc	EqualFunc
 	items 	[]interface{}
 	size	int
 }
 
-func NewSliceList() *SliceList {
-	return &SliceList{}
+func NewSliceList(f EqualFunc) *SliceList {
+	return &SliceList{eFunc:f}
 }
 
 // Add appends a value at the end of the list
@@ -22,6 +26,16 @@ func (list *SliceList) Add(value interface{}) (index int) {
 	list.size++
 
 	return
+}
+
+func (list *SliceList) Contains(item interface{}) bool {
+
+	for _, it := range list.items {
+		if list.eFunc(item, it) {
+			return true
+		}
+	}
+	return false
 }
 
 // Remove removes one or more elements from the list with the supplied indices.

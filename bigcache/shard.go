@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+const NO_EXPIRY int64 = -1
+
 type cacheShard struct {
 	sharedNum   uint64
 	hashmap     map[uint64]uint32
@@ -57,12 +59,15 @@ func (s *cacheShard) get(key string, hashedKey uint64) ([]byte, error) {
 }
 
 func (s *cacheShard) set(key string, hashedKey uint64, entry []byte, duration time.Duration) (error) {
-	expiryTimestamp := uint64(s.clock.epoch()) + uint64(duration.Seconds())
+	expiryTimestamp := uint64(s.clock.epoch())
+	if duration != time.Duration(NO_EXPIRY) {
+		expiryTimestamp += uint64(duration.Seconds())
+	}
+
 
 	s.lock.Lock()
 
 	if previousIndex := s.hashmap[hashedKey]; previousIndex != 0 {
-		//log.Println("previious value")
 		if previousEntry, err := s.entries.Get(int(previousIndex)); err == nil {
 			timestamp := readTimestampFromEntry(previousEntry)
 			s.ttlTable.remove(timestamp, key)
@@ -70,25 +75,17 @@ func (s *cacheShard) set(key string, hashedKey uint64, entry []byte, duration ti
 		}
 	}
 
-	//if oldestEntry, err := s.entries.Peek(); err == nil {
-	//	s.onEvict(oldestEntry, expiryTimestamp, s.removeOldestEntry)
-	//}
-
 	w := wrapEntry(expiryTimestamp, hashedKey, key, entry, &s.entryBuffer)
 
 	var err error
-	//for {
 	if index, err := s.entries.Push(w); err == nil {
 		s.hashmap[hashedKey] = uint32(index)
 		s.lock.Unlock()
-		s.ttlTable.put(expiryTimestamp, key)
+		if duration != time.Duration(NO_EXPIRY) {
+			s.ttlTable.put(expiryTimestamp, key)
+		}
 		return nil
 	}
-		//if s.removeOldestEntry() != nil {
-		//	s.lock.Unlock()
-		//	return fmt.Errorf("entry is bigger than max shard size")
-		//}
-	//}
 
 	return err
 }
