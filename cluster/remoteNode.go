@@ -6,6 +6,7 @@ import (
 	"github.com/oaStuff/clusteredBigCache/utils"
 	"encoding/binary"
 	"io"
+	"github.com/oaStuff/clusteredBigCache/message"
 )
 
 const (
@@ -26,6 +27,7 @@ type remoteNode struct {
 	config        *remoteNodeConfig
 	connection    *comms.Connection
 	parentNode    *Node
+	msgQueue 	  chan *message.NodeWireMessage
 	indexInParent int
 	logger        utils.AppLogger
 	state         remoteNodeState
@@ -34,6 +36,7 @@ type remoteNode struct {
 func newRemoteNode(config *remoteNodeConfig, parent *Node, logger utils.AppLogger) *remoteNode {
 	return &remoteNode{
 		config:     config,
+		msgQueue:   make(chan *message.NodeWireMessage, 1024),
 		state:      nodeStateDisconnected,
 		parentNode: parent,
 		logger:     logger,
@@ -62,7 +65,8 @@ func (r *remoteNode) join() error {
 			time.Sleep(time.Second * 3)
 		}
 		go r.networkConsumer()
-		r.sendMessage(&nodeMessage{code:msgVERIFY})
+		go r.handleMessage()
+		r.sendMessage(&message.VerifyMessage{})
 	}()
 
 
@@ -101,16 +105,18 @@ func (r *remoteNode) networkConsumer() {
 				r.shutDown()
 				return
 			}
-			go r.handleMessage(msgCode, data)
+			r.queueMessage(&message.NodeWireMessage{Code:msgCode, Data:data})
 		}
 	}
 }
 
-func (r *remoteNode) sendMessage(msg *nodeMessage) {
-	data := make([]byte, 4 + len(msg.data))
-	binary.LittleEndian.PutUint16(data, uint16(len(msg.data) + 2))
-	binary.LittleEndian.PutUint16(data[2:],msg.code)
-	copy(data[4:], msg.data)
+
+func (r *remoteNode) sendMessage(m message.NodeMessage) {
+	msg := m.Serialize()
+	data := make([]byte, 4 + len(msg.Data))
+	binary.LittleEndian.PutUint16(data, uint16(len(msg.Data) + 2))
+	binary.LittleEndian.PutUint16(data[2:],msg.Code)
+	copy(data[4:], msg.Data)
 	if err := r.connection.SendData(data); err != nil {
 		utils.Critical(r.logger,"unexpected error while sending data [" + err.Error() + "]")
 		r.shutDown()
@@ -127,7 +133,42 @@ func (r *remoteNode) shutDown()  {
 	r.connection = nil
 }
 
-func (r *remoteNode) handleMessage(code uint16, data []byte) {
+func (r *remoteNode) queueMessage(msg *message.NodeWireMessage) {
+	r.msgQueue <- msg
+}
+
+func (r *remoteNode) handleMessage()  {
+
+	for msg := range r.msgQueue {
+		switch msg.Code {
+		case message.MsgVERIFY:
+			r.handleVerify(msg)
+		case message.MsgVERIFYRsp:
+			r.handleVerifyRsp(msg)
+		case message.MsgPING:
+			r.handlePing()
+		case message.MsgPONG:
+			r.handlePong()
+		}
+	}
+}
+
+func (r *remoteNode) handleVerify(msg *message.NodeWireMessage) {
+	verifyMsg := message.VerifyMessage{}
+	verifyMsg.DeSerialize(msg)
+}
+
+func (r *remoteNode) handleVerifyRsp(msg *message.NodeWireMessage) {
 
 }
+
+func (r *remoteNode) handlePing() {
+
+}
+
+func (r *remoteNode) handlePong() {
+
+}
+
+
 
