@@ -3,13 +3,13 @@
 
 [[projects]]
   name = "github.com/emirpasic/gods"
-  packages = ["containers","trees","trees/avltree","utils"]
+  packages = ["containers","sets","sets/hashset","trees","trees/avltree","utils"]
   revision = "f6c17b524822278a87e3b3bd809fec33b51f5b46"
   version = "v1.9.0"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "b6827442c22ae22d33cffb926987fd562c2af0798aa79e4b9cabf2e5d57e504a"
+  inputs-digest = "133b21a344b45a879e4437e51955ea6d3e6f029a92edb7d9557c600eb60a17d6"
   solver-name = "gps-cdcl"
   solver-version = 1

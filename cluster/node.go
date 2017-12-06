@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"github.com/oaStuff/clusteredBigCache/comms"
 	"errors"
+	"fmt"
 )
 
 type NodeConfig struct {
@@ -102,7 +103,7 @@ func (node *Node) listen() {
 	var err error
 	node.serverEndpoint, err = net.Listen("tcp",":" + strconv.Itoa(node.config.LocalPort))
 	if err != nil {
-		panic("unable to Listen on provided port number. [" + err.Error() + "]")
+		panic(fmt.Sprintf("unable to Listen on port %d. [%s]",node.config.LocalPort, err.Error()))
 	}
 
 	errCount := 0
@@ -121,6 +122,7 @@ func (node *Node) listen() {
 		remoteNode := newRemoteNode(&remoteNodeConfig{IpAddress:tcpConn.RemoteAddr().String()}, node, node.logger)
 		remoteNode.setState(nodeStateHandshake)
 		remoteNode.setConnection(comms.WrapConnection(tcpConn))
+		remoteNode.start()
 	}
 	utils.Critical(node.logger, "listening loop terminated unexpectedly due to too many errors")
 	panic("listening loop terminated unexpectedly due to too many errors")

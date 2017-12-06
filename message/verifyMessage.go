@@ -1,7 +1,7 @@
 package message
 
 type VerifyMessage struct {
-	code uint16
+	code		uint16
 }
 
 func (vm *VerifyMessage) Serialize() *NodeWireMessage  {
