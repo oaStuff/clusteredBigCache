@@ -328,7 +328,7 @@ func (r *remoteNode) handleMessage()  {
 		case message.MsgPONG:
 			r.handlePong()
 		case message.MsgNODELIST:
-			r.handleNodeList()
+			r.handleNodeList(msg)
 		}
 	}
 
@@ -380,10 +380,19 @@ func (r *remoteNode) sendNodeList() {
 		nodeList[x] = message.ProposedPeer{Id:n.config.Id, IpAddress:net.JoinHostPort(host,n.config.ServicePort)}
 		x++
 	}
+
+	if len(nodeList) > 0 {
+		r.sendMessage(&message.NodeListMessage{List: nodeList})
+	}
 }
 
-func (r *remoteNode) handleNodeList() {
-
+func (r *remoteNode) handleNodeList(msg *message.NodeWireMessage) {
+	listMsg := message.NodeListMessage{}
+	listMsg.DeSerialize(msg)
+	length := len(listMsg.List)
+	for x := 0; x < length; x++ {
+		r.parentNode.joinQueue <- &listMsg.List[x]
+	}
 }
 
 
