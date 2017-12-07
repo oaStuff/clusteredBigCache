@@ -307,12 +307,14 @@ func (r *remoteNode) queueMessage(msg *message.NodeWireMessage) {
 
 	if r.state == nodeStateHandshake {	//when in the handshake state only accept MsgVERIFY and MsgVERIFYRsp messages
 		code := msg.Code
-		if code != message.MsgVERIFY {
+		if (code != message.MsgVERIFY) && (code != message.MsgVERIFYOK) {		//TODO: it is very possible to miss a msgNODELIST message. handle !!!
 			return
 		}
 	}
 
 	r.msgQueue <- msg
+	//we could modify handleMessage() to run async as in go handleMessage(msg)
+	//instead of queuing the message
 }
 
 
@@ -329,6 +331,8 @@ func (r *remoteNode) handleMessage()  {
 			r.handlePong()
 		case message.MsgNODELIST:
 			r.handleNodeList(msg)
+		case message.MsgVERIFYOK:
+			r.handleVerifyOK()
 		}
 	}
 
@@ -354,7 +358,26 @@ func (r *remoteNode) handleVerify(msg *message.NodeWireMessage) {
 	}
 
 	r.setState(nodeStateConnected)
-	r.sendNodeList()
+	r.sendMessage(&message.VerifyOKMessage{})
+}
+
+func (r *remoteNode) handleVerifyOK()  {
+
+	go func() {
+		count := 0
+		for r.state == nodeStateHandshake {
+			time.Sleep(time.Second * 1)
+			count++
+			if count >= 5 {
+				utils.Warn(r.logger, fmt.Sprintf("node '%s' state refused to change out of handshake",r.config.Id))
+				break
+			}
+		}
+		if count < 5 {
+			r.sendNodeList()
+		}
+	}()
+
 }
 
 func (r *remoteNode) handlePing() {

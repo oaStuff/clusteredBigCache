@@ -2,6 +2,7 @@ package message
 
 const (
 	MsgVERIFY = iota + 10
+	MsgVERIFYOK
 	MsgPING
 	MsgPONG
 	MsgPUT
