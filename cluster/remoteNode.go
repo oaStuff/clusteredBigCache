@@ -24,11 +24,12 @@ type remoteNodeState uint8
 
 // remote node configuration
 type remoteNodeConfig struct {
-	Id        				string 		`json:"id"`
-	IpAddress 				string 		`json:"ip_address"`
-	PingFailureThreshHold	int32		`json:"ping_failure_thresh_hold"`
-	PingInterval			int 		`json:"ping_interval"`
-	PingTimeout				int 		`json:"ping_timeout"`
+	Id                    string `json:"id"`
+	IpAddress             string `json:"ip_address"`
+	PingFailureThreshHold int32  `json:"ping_failure_thresh_hold"`
+	PingInterval          int    `json:"ping_interval"`
+	PingTimeout           int    `json:"ping_timeout"`
+	ConnectRetries        int    `json:"connect_retries"`
 }
 
 
@@ -49,21 +50,28 @@ type remoteNode struct {
 }
 
 func remoteNodeEqualFunc(item1, item2 interface{}) bool {
+	if (nil == item1) || (nil == item2){
+		return false
+	}
 	return item1.(*remoteNode).config.Id == item2.(*remoteNode).config.Id
 }
 
 func checkConfig(logger utils.AppLogger, config *remoteNodeConfig)  {
-	config.PingFailureThreshHold = -1
+
 	if config.PingInterval < 5 {
-		config.PingInterval = 15
+		config.PingInterval = 5
 	}
 
 	if config.PingTimeout < 3 {
-		config.PingTimeout = 13
+		config.PingTimeout = 3
 	}
 
 	if config.PingTimeout > config.PingInterval {
 		utils.Warn(logger, "ping timeout is greater than ping interval, pings will NEVER timeout")
+	}
+
+	if config.PingFailureThreshHold < 5 {
+		config.PingFailureThreshHold = 5
 	}
 }
 
@@ -98,62 +106,57 @@ func (r *remoteNode) startPinging()  {
 	r.pingTimer = time.NewTicker(time.Second * time.Duration(r.config.PingInterval))
 	r.pingTimeout = time.NewTimer(time.Second * time.Duration(r.config.PingTimeout))
 
+	r.sendMessage(&message.PingMessage{}) //send the first ping message
+
 	go func() {
-		val := -1
+		done := false
 		for {
-			fmt.Println("select")
 			select {
 			case <-r.pingTimer.C:
-				val = 1
-				fmt.Println("set to 1")
-			case <-r.done:
-				val = 2
-				fmt.Println("set to 2")
-			}
-			if val == 1 {
 				r.sendMessage(&message.PingMessage{})
 				r.pingTimeout.Stop()
 				r.pingTimeout.Reset(time.Second * time.Duration(r.config.PingTimeout))
-			}else if val == 2 {
+			case <-r.done:		//we have this so that the goroutine would not linger after this node disconnects because
+				done = true		//of the blocking channel in the above case statement
+			}
+
+			if done {
 				break
 			}
-			val = -1
 		}
-		fmt.Println("clooooooosssseed")
+
+		utils.Info(r.logger, fmt.Sprintf("shutting down ping timer goroutine for '%s'", r.config.Id))
 	}()
 
 	go func() {
-		val := -1
+		done := false
+		fault := false
 		for {
-			fmt.Println("select 2")
 			select {
 			case <-r.pingTimeout.C:
-				val = 1
-			case <-r.done:
-				val = 2
-				fmt.Println("vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv")
-			}
-			fmt.Println("outsidddddddeeeeee")
-			if val == 1 {
 				utils.Warn(r.logger,
-					fmt.Sprintf("no ping response within configured time frame for remote node '%s'", r.config.Id))
+					fmt.Sprintf("no ping response within configured time frame from remote node '%s'", r.config.Id))
 				atomic.AddInt32(&r.pingFailure, 1)
 				if r.pingFailure >= r.config.PingFailureThreshHold {
 					r.pingTimeout.Stop()
+					fault = true
 					break
 				}
-			}else if val == 2 {
+			case <-r.done:		//we have this so that the goroutine would not linger after this node disconnects because
+				done = true		//of the blocking channel in the above case statement
+			}
+
+			if done || fault {
 				break
 			}
-			val = -1
 		}
 
-		if val != 2 {
+		if fault {
 			//the remote node is assumed to be 'dead' since it has not responded to recent ping request
 			utils.Warn(r.logger, fmt.Sprintf("shutting down connection to remote node '%s' due to no ping response", r.config.Id))
-			r.shutDown("form goroutine timer")
-		}else {
-			fmt.Println("yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy")
+			r.shutDown()
+		} else {
+			utils.Info(r.logger, fmt.Sprintf("shutting down ping timeout goroutine for '%s'", r.config.Id))
 		}
 	}()
 }
@@ -169,13 +172,22 @@ func (r *remoteNode) join() error {
 	utils.Info(r.logger, "joining cluster via " + r.config.IpAddress )
 
 	go func() {				//goroutine will try to connect to the cluster until it succeeds
-		var err error		//TODO: set an upper limit to the tries
+							//TODO: set an upper limit to the tries
+		var err error
+		tries := 0
 		for {
 			if err = r.connect(); err == nil {
 				break
 			}
 			utils.Error(r.logger, err.Error())
 			time.Sleep(time.Second * 3)
+			tries++
+			if r.config.ConnectRetries > 0 {
+				if tries >= r.config.ConnectRetries {
+					utils.Warn(r.logger, fmt.Sprintf("unable to connect to remote node '%s' after max retires", r.config.IpAddress))
+					return
+				}
+			}
 		}
 		utils.Info(r.logger, "connected to cluster via " + r.config.IpAddress)
 		r.start()
@@ -211,23 +223,23 @@ func (r *remoteNode) networkConsumer() {
 
 		header, err := r.connection.ReadData(4, 0) //read 4 byte header
 		if nil != err {
-			fmt.Println("+++++++++++++++++++++++=")
-			utils.Critical(r.logger, "remote node has disconnected")
-			r.shutDown("from networkConsumer()1")
+			utils.Critical(r.logger, fmt.Sprintf("remote node '%s' has disconnected", r.config.Id))
+			r.shutDown()
 			return
 		}
 
 		dataLength := int16(binary.LittleEndian.Uint16(header)) - 2 //subtracted 2 becos of message code
 		msgCode := binary.LittleEndian.Uint16(header[2:])
+		var data []byte = nil
 		if dataLength > 0 {
-			data, err := r.connection.ReadData(uint(dataLength), 0)
+			data, err = r.connection.ReadData(uint(dataLength), 0)
 			if nil != err {
-				utils.Critical(r.logger, "remote node has disconnected")
-				r.shutDown("from networkConsumer()2")
+				utils.Critical(r.logger, fmt.Sprintf("remote node '%s' has disconnected", r.config.Id))
+				r.shutDown()
 				return
 			}
-			r.queueMessage(&message.NodeWireMessage{Code: msgCode, Data: data}) //queue message to be processed
 		}
+		r.queueMessage(&message.NodeWireMessage{Code: msgCode, Data: data}) //queue message to be processed
 	}
 
 }
@@ -239,26 +251,23 @@ func (r *remoteNode) networkConsumer() {
 // bytes 5 upwards == message content
 func (r *remoteNode) sendMessage(m message.NodeMessage) {
 	msg := m.Serialize()
-	fmt.Println("sending data === ", msg.Code)
 	data := make([]byte, 4 + len(msg.Data))
 	binary.LittleEndian.PutUint16(data, uint16(len(msg.Data) + 2))  //the 2 is for the message code
 	binary.LittleEndian.PutUint16(data[2:],msg.Code)
 	copy(data[4:], msg.Data)
 	if err := r.connection.SendData(data); err != nil {
 		utils.Critical(r.logger,"unexpected error while sending data [" + err.Error() + "]")
-		r.shutDown("from sending message")
+		r.shutDown()
 	}
 }
 
 
 //bring down the remote node. should not be called from outside networkConsumer()
-func (r *remoteNode) shutDown(d string)  {
+func (r *remoteNode) shutDown()  {
 	r.stateLock.Lock()
 	defer r.stateLock.Unlock()
 
-	fmt.Println("************************************88  ", d)
 	if r.state == nodeStateDisconnected {
-		fmt.Println("leaving shutdown early")
 		return
 	}
 
@@ -266,13 +275,16 @@ func (r *remoteNode) shutDown(d string)  {
 	r.parentNode.eventRemoteNodeDisconneced(r)
 	r.connection.Close()
 	r.parentNode = nil
-	r.logger = nil
-	r.pingTimeout.Stop()
-	r.pingTimer.Stop()
+	if r.pingTimeout != nil {
+		r.pingTimeout.Stop()
+	}
+	if r.pingTimer != nil {
+		r.pingTimer.Stop()
+	}
 	close(r.done)
-
-
-	fmt.Println("leaving shutdown normarly")
+	close(r.msgQueue)
+	utils.Info(r.logger, fmt.Sprintf("shutting down remote node '%s' ",r.config.Id))
+	//r.logger = nil
 }
 
 //just queue the message in a channel
@@ -304,23 +316,28 @@ func (r *remoteNode) handleMessage()  {
 			r.handlePong()
 		}
 	}
+
+	utils.Info(r.logger,fmt.Sprintf("terminated message handler goroutine for '%s'", r.config.Id))
 }
 
 func (r *remoteNode) handleVerify(msg *message.NodeWireMessage) {
-	verifyMsg := message.VerifyMessage{}
-	verifyMsg.DeSerialize(msg)
+	verifyMsgRsp := message.VerifyMessageRsp{Id:r.parentNode.config.Id}
+	r.sendMessage(&verifyMsgRsp)
 }
 
 func (r *remoteNode) handleVerifyRsp(msg *message.NodeWireMessage) {
-	utils.Info(r.logger, "verifying resp")
+
 	verifyMsgRsp := message.VerifyMessageRsp{}
 	verifyMsgRsp.DeSerialize(msg)
-	if r.parentNode.eventVerifyRemoteNode(r, verifyMsgRsp) {
-		r.config.Id = verifyMsgRsp.Id
-		r.setState(nodeStateConnected)
-		utils.Info(r.logger, "node changing state")
-		r.startPinging()
+	r.config.Id = verifyMsgRsp.Id
+	if !r.parentNode.eventVerifyRemoteNode(r) {
+		utils.Warn(r.logger, fmt.Sprintf("node already has remote node '%s' so shutdown new connection", r.config.Id))
+		r.shutDown()
+		return
 	}
+
+	r.setState(nodeStateConnected)
+	r.startPinging()
 }
 
 func (r *remoteNode) handlePing() {

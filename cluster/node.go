@@ -9,16 +9,16 @@ import (
 	"github.com/oaStuff/clusteredBigCache/comms"
 	"errors"
 	"fmt"
-	"github.com/oaStuff/clusteredBigCache/message"
 )
 
 type NodeConfig struct {
-	Id             string   `json:"id"`
-	Join           bool     `json:"join"`
-	JoinIp         string   `json:"join_ip"`
-	LocalAddresses []string `json:"local_addresses"`
-	LocalPort      int      `json:"local_port"`
-	BindAll        bool     `json:"bind_all"`
+	Id             	string		`json:"id"`
+	Join           	bool  		`json:"join"`
+	JoinIp         	string 		`json:"join_ip"`
+	LocalAddresses 	[]string	`json:"local_addresses"`
+	LocalPort      	int  		`json:"local_port"`
+	BindAll        	bool 		`json:"bind_all"`
+	ConnectRetries	int			`json:"connect_retries"`
 }
 
 type Node struct {
@@ -65,7 +65,7 @@ func (node *Node) Start() error  {
 
 func (node *Node) ShutDown()  {
 	for _, v := range node.remoteNodes.Values() {
-		v.(*remoteNode).shutDown("NODe")
+		v.(*remoteNode).shutDown()
 	}
 }
 
@@ -75,7 +75,7 @@ func (node *Node) joinCluster() error {
 		return errors.New("the server's IP to join can not be empty since Join is true, there must be a JoinIP")
 	}
 
-	remoteNode := newRemoteNode(&remoteNodeConfig{IpAddress:node.config.JoinIp}, node, node.logger)
+	remoteNode := newRemoteNode(&remoteNodeConfig{IpAddress:node.config.JoinIp, ConnectRetries:node.config.ConnectRetries}, node, node.logger)
 	remoteNode.join()
 
 	return nil
@@ -84,13 +84,6 @@ func (node *Node) joinCluster() error {
 func (node *Node) bringNodeUp() {
 	utils.Info(node.logger, "bringing up node " + node.config.Id)
 	go node.listen()
-}
-
-func (node *Node) eventRemoteNodeConneced(remoteNode *remoteNode)  {
-	node.lock.Lock()
-	defer node.lock.Unlock()
-
-	remoteNode.indexInParent = node.remoteNodes.Add(remoteNode)
 }
 
 func (node *Node) eventRemoteNodeDisconneced(remoteNode *remoteNode)  {
@@ -105,18 +98,17 @@ func (node *Node) eventRemoteNodeDisconneced(remoteNode *remoteNode)  {
 	node.remoteNodes.Remove(remoteNode.indexInParent)
 }
 
-func (node *Node) eventVerifyRemoteNode(remoteNode *remoteNode, msg message.VerifyMessageRsp) bool {
+func (node *Node) eventVerifyRemoteNode(remoteNode *remoteNode) bool {
 	node.lock.Lock()
+	defer node.lock.Unlock()
+
 	if node.remoteNodes.Contains(remoteNode) {
-		utils.Warn(node.logger, fmt.Sprintf("node already has remote node '%s' so shutdown new connection", remoteNode.config.Id))
-		node.lock.Unlock()			//have to unlock since remoteNode.shutDown() may call *Node back to remove itself
-		remoteNode.shutDown("from node")
 		return false
 	}
 
 	index := node.remoteNodes.Add(remoteNode)
 	remoteNode.indexInParent = index
-	node.lock.Unlock()
+	utils.Info(node.logger, fmt.Sprintf("added remote node '%s' into group at index %d", remoteNode.config.Id, index))
 
 	return true
 }
@@ -129,6 +121,7 @@ func (node *Node) listen() {
 		panic(fmt.Sprintf("unable to Listen on port %d. [%s]",node.config.LocalPort, err.Error()))
 	}
 
+	utils.Info(node.logger, fmt.Sprintf("node '%s' is up and running", node.config.Id))
 	errCount := 0
 	for {
 		conn, err :=node.serverEndpoint.Accept()
@@ -142,7 +135,8 @@ func (node *Node) listen() {
 		}
 		//TODO: query the client for its details and insert into remoteNodes structure
 		tcpConn := conn.(*net.TCPConn)
-		remoteNode := newRemoteNode(&remoteNodeConfig{IpAddress:tcpConn.RemoteAddr().String()}, node, node.logger)
+		remoteNode := newRemoteNode(&remoteNodeConfig{IpAddress:tcpConn.RemoteAddr().String(),
+													ConnectRetries:node.config.ConnectRetries}, node, node.logger)
 		remoteNode.setState(nodeStateHandshake)
 		remoteNode.setConnection(comms.WrapConnection(tcpConn))
 		utils.Info(node.logger, fmt.Sprintf("new connection from remote '%s'", tcpConn.RemoteAddr().String()))
