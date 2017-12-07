@@ -2,17 +2,18 @@ package message
 
 import "encoding/json"
 
-type VerifyMessageRsp struct {
-	Id		string		`json:"id"`
-	version	string		`json:"version"`
+type VerifyMessage struct {
+	Id			string		`json:"id"`
+	Version		string		`json:"version"`
+	ServicePort	string		`json:"service_port"`
 }
 
-func (vm *VerifyMessageRsp) Serialize() *NodeWireMessage {
+func (vm *VerifyMessage) Serialize() *NodeWireMessage {
 	data, _ := json.Marshal(vm)
-	return &NodeWireMessage{Code:MsgVERIFYRsp, Data:data}
+	return &NodeWireMessage{Code:MsgVERIFY, Data:data}
 }
 
-func (vm *VerifyMessageRsp) DeSerialize(msg *NodeWireMessage)  {
+func (vm *VerifyMessage) DeSerialize(msg *NodeWireMessage)  {
 	json.Unmarshal(msg.Data, vm)
 }
 

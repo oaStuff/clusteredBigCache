@@ -7,15 +7,17 @@ const (
 )
 
 type EqualFunc func(a, b interface{}) bool
+type KeyFunc func(item interface{}) string
 
 type SliceList struct {
 	eFunc	EqualFunc
+	kFunc 	KeyFunc
 	items 	[]interface{}
 	size	int
 }
 
-func NewSliceList(f EqualFunc) *SliceList {
-	return &SliceList{eFunc:f}
+func NewSliceList(f EqualFunc, k KeyFunc) *SliceList {
+	return &SliceList{eFunc:f, kFunc:k}
 }
 
 // Add appends a value at the end of the list
@@ -67,6 +69,22 @@ func (list *SliceList) Values() []interface{} {
 	newElements := make([]interface{}, list.size, list.size)
 	copy(newElements, list.items[:list.size])
 	return newElements
+}
+
+
+//TODO: take a good look at this
+func (list *SliceList) Keys() map[string]bool  {
+	values := list.Values()
+	keys := make(map[string]bool)
+	for x := 0; x < len(values); x++ {
+		v := list.kFunc(values[x])
+		if "" == v {
+			continue
+		}
+		keys[v] = true
+	}
+
+	return keys
 }
 
 // Check that the index is within bounds of the list

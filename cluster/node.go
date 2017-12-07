@@ -9,6 +9,7 @@ import (
 	"github.com/oaStuff/clusteredBigCache/comms"
 	"errors"
 	"fmt"
+	"github.com/oaStuff/clusteredBigCache/message"
 )
 
 type NodeConfig struct {
@@ -28,6 +29,7 @@ type Node struct {
 	logger      	utils.AppLogger
 	lock 			sync.Mutex
 	serverEndpoint 	net.Listener
+	joinQueue		chan *message.ProposedPeer
 }
 
 func NewNode(config *NodeConfig, logger utils.AppLogger) *Node {
@@ -40,9 +42,10 @@ func NewNode(config *NodeConfig, logger utils.AppLogger) *Node {
 	return &Node{
 		config:			config,
 		cache: 			cache,
-		remoteNodes: 	utils.NewSliceList(remoteNodeEqualFunc),
+		remoteNodes: 	utils.NewSliceList(remoteNodeEqualFunc, remoteNodeKeyFunc),
 		logger: 		logger,
 		lock: 			sync.Mutex{},
+		joinQueue: 		make(chan *message.ProposedPeer, 512),
 	}
 }
 
@@ -54,6 +57,8 @@ func (node *Node) Start() error  {
 	}
 
 	node.bringNodeUp()
+	go node.joining()
+
 	if true == node.config.Join {	//we are to join an existing cluster
 		if err := node.joinCluster(); err != nil {
 			return err
@@ -71,7 +76,7 @@ func (node *Node) ShutDown()  {
 
 func (node *Node) joinCluster() error {
 	if "" == node.config.JoinIp {
-		utils.Critical(node.logger,"the server' IP to join can not be empty.")
+		utils.Critical(node.logger,"the server's IP to join can not be empty.")
 		return errors.New("the server's IP to join can not be empty since Join is true, there must be a JoinIP")
 	}
 
@@ -96,6 +101,13 @@ func (node *Node) eventRemoteNodeDisconneced(remoteNode *remoteNode)  {
 	defer node.lock.Unlock()
 
 	node.remoteNodes.Remove(remoteNode.indexInParent)
+}
+
+func (node *Node) getRemoteNodes() []interface{} {
+	node.lock.Lock()
+	defer node.lock.Unlock()
+
+	return node.remoteNodes.Values()
 }
 
 func (node *Node) eventVerifyRemoteNode(remoteNode *remoteNode) bool {
@@ -133,7 +145,9 @@ func (node *Node) listen() {
 			}
 			continue
 		}
-		//TODO: query the client for its details and insert into remoteNodes structure
+		errCount = 0
+
+		//build a new remoteNode from this new connection
 		tcpConn := conn.(*net.TCPConn)
 		remoteNode := newRemoteNode(&remoteNodeConfig{IpAddress:tcpConn.RemoteAddr().String(),
 													ConnectRetries:node.config.ConnectRetries}, node, node.logger)
@@ -144,4 +158,30 @@ func (node *Node) listen() {
 	}
 	utils.Critical(node.logger, "listening loop terminated unexpectedly due to too many errors")
 	panic("listening loop terminated unexpectedly due to too many errors")
+}
+
+func (node *Node) DoTest()  {
+	fmt.Printf("list of keys: %+v\n", node.remoteNodes.Keys())
+}
+
+
+//this is a goroutine that takes details from a channel and connect to them if they are not known
+//when a remote system connects to this node or when this node connects to a remote system, it will query that system
+//for the list of its connected nodes and pushes that list into this channel so that this node can connect forming
+//a mesh network in the process
+func (node *Node) joining() {
+
+	for value := range node.joinQueue {
+		node.lock.Lock()
+		keys := node.remoteNodes.Keys()
+		node.lock.Unlock()
+		if _, ok := keys[value.Id]; ok {
+			continue
+		}
+
+		//we are here because we dont know this remote node
+		remoteNode := newRemoteNode(&remoteNodeConfig{IpAddress:value.IpAddress,
+										ConnectRetries:node.config.ConnectRetries}, node, node.logger)
+		remoteNode.join()
+	}
 }

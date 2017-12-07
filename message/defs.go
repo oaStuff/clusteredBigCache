@@ -2,11 +2,11 @@ package message
 
 const (
 	MsgVERIFY = iota + 10
-	MsgVERIFYRsp
 	MsgPING
 	MsgPONG
 	MsgPUT
 	MsgDEL
+	MsgNODELIST
 )
 
 type NodeWireMessage struct {
@@ -17,5 +17,10 @@ type NodeWireMessage struct {
 type NodeMessage interface {
 	Serialize() *NodeWireMessage
 	DeSerialize(msg *NodeWireMessage)
+}
+
+type ProposedPeer struct {
+	Id			string
+	IpAddress	string
 }
 

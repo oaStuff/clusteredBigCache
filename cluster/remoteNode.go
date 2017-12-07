@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"sync/atomic"
 	"sync"
+	"strconv"
+	"net"
 )
 
 const (
@@ -24,12 +26,13 @@ type remoteNodeState uint8
 
 // remote node configuration
 type remoteNodeConfig struct {
-	Id                    string `json:"id"`
-	IpAddress             string `json:"ip_address"`
-	PingFailureThreshHold int32  `json:"ping_failure_thresh_hold"`
-	PingInterval          int    `json:"ping_interval"`
-	PingTimeout           int    `json:"ping_timeout"`
-	ConnectRetries        int    `json:"connect_retries"`
+	Id                    	string 		`json:"id"`
+	IpAddress             	string 		`json:"ip_address"`
+	PingFailureThreshHold 	int32  		`json:"ping_failure_thresh_hold"`
+	PingInterval          	int    		`json:"ping_interval"`
+	PingTimeout           	int    		`json:"ping_timeout"`
+	ConnectRetries        	int    		`json:"connect_retries"`
+	ServicePort				string 		`json:"service_port"`
 }
 
 
@@ -54,6 +57,14 @@ func remoteNodeEqualFunc(item1, item2 interface{}) bool {
 		return false
 	}
 	return item1.(*remoteNode).config.Id == item2.(*remoteNode).config.Id
+}
+
+func remoteNodeKeyFunc(item interface{}) string {
+	if nil == item {
+		return ""
+	}
+
+	return item.(*remoteNode).config.Id
 }
 
 func checkConfig(logger utils.AppLogger, config *remoteNodeConfig)  {
@@ -134,8 +145,12 @@ func (r *remoteNode) startPinging()  {
 		for {
 			select {
 			case <-r.pingTimeout.C:
-				utils.Warn(r.logger,
-					fmt.Sprintf("no ping response within configured time frame from remote node '%s'", r.config.Id))
+				if r.state != nodeStateHandshake {
+					utils.Warn(r.logger,
+						fmt.Sprintf("no ping response within configured time frame from remote node '%s'", r.config.Id))
+				} else {
+					utils.Warn(r.logger, "remote node not verified, therefore ping failing")
+				}
 				atomic.AddInt32(&r.pingFailure, 1)
 				if r.pingFailure >= r.config.PingFailureThreshHold {
 					r.pingTimeout.Stop()
@@ -155,21 +170,21 @@ func (r *remoteNode) startPinging()  {
 			//the remote node is assumed to be 'dead' since it has not responded to recent ping request
 			utils.Warn(r.logger, fmt.Sprintf("shutting down connection to remote node '%s' due to no ping response", r.config.Id))
 			r.shutDown()
-		} else {
-			utils.Info(r.logger, fmt.Sprintf("shutting down ping timeout goroutine for '%s'", r.config.Id))
 		}
+		utils.Info(r.logger, fmt.Sprintf("shutting down ping timeout goroutine for '%s'", r.config.Id))
 	}()
 }
 
 func (r *remoteNode) start()  {
 	go r.networkConsumer()
 	go r.handleMessage()
-	r.sendMessage(&message.VerifyMessage{})
+	r.sendVerify()
+	r.startPinging()
 }
 
 //join a cluster. this will be called if join in the config is set to true
 func (r *remoteNode) join() error {
-	utils.Info(r.logger, "joining cluster via " + r.config.IpAddress )
+	utils.Info(r.logger, "joining node via " + r.config.IpAddress )
 
 	go func() {				//goroutine will try to connect to the cluster until it succeeds
 							//TODO: set an upper limit to the tries
@@ -189,7 +204,7 @@ func (r *remoteNode) join() error {
 				}
 			}
 		}
-		utils.Info(r.logger, "connected to cluster via " + r.config.IpAddress)
+		utils.Info(r.logger, "connected to node via " + r.config.IpAddress)
 		r.start()
 	}()
 
@@ -290,9 +305,9 @@ func (r *remoteNode) shutDown()  {
 //just queue the message in a channel
 func (r *remoteNode) queueMessage(msg *message.NodeWireMessage) {
 
-	if r.state == nodeStateHandshake {	//when is the handshake state only accept MsgVERIFY and MsgVERIFYRsp messages
+	if r.state == nodeStateHandshake {	//when in the handshake state only accept MsgVERIFY and MsgVERIFYRsp messages
 		code := msg.Code
-		if (code != message.MsgVERIFY) && (code != message.MsgVERIFYRsp) {
+		if code != message.MsgVERIFY {
 			return
 		}
 	}
@@ -308,28 +323,30 @@ func (r *remoteNode) handleMessage()  {
 		switch msg.Code {
 		case message.MsgVERIFY:
 			r.handleVerify(msg)
-		case message.MsgVERIFYRsp:
-			r.handleVerifyRsp(msg)
 		case message.MsgPING:
 			r.handlePing()
 		case message.MsgPONG:
 			r.handlePong()
+		case message.MsgNODELIST:
+			r.handleNodeList()
 		}
 	}
 
 	utils.Info(r.logger,fmt.Sprintf("terminated message handler goroutine for '%s'", r.config.Id))
 }
 
-func (r *remoteNode) handleVerify(msg *message.NodeWireMessage) {
-	verifyMsgRsp := message.VerifyMessageRsp{Id:r.parentNode.config.Id}
+func (r *remoteNode) sendVerify() {
+	verifyMsgRsp := message.VerifyMessage{Id:r.parentNode.config.Id,
+						ServicePort:strconv.Itoa(r.parentNode.config.LocalPort)}
 	r.sendMessage(&verifyMsgRsp)
 }
 
-func (r *remoteNode) handleVerifyRsp(msg *message.NodeWireMessage) {
+func (r *remoteNode) handleVerify(msg *message.NodeWireMessage) {
 
-	verifyMsgRsp := message.VerifyMessageRsp{}
+	verifyMsgRsp := message.VerifyMessage{}
 	verifyMsgRsp.DeSerialize(msg)
 	r.config.Id = verifyMsgRsp.Id
+	r.config.ServicePort = verifyMsgRsp.ServicePort
 	if !r.parentNode.eventVerifyRemoteNode(r) {
 		utils.Warn(r.logger, fmt.Sprintf("node already has remote node '%s' so shutdown new connection", r.config.Id))
 		r.shutDown()
@@ -337,7 +354,7 @@ func (r *remoteNode) handleVerifyRsp(msg *message.NodeWireMessage) {
 	}
 
 	r.setState(nodeStateConnected)
-	r.startPinging()
+	r.sendNodeList()
 }
 
 func (r *remoteNode) handlePing() {
@@ -347,6 +364,26 @@ func (r *remoteNode) handlePing() {
 func (r *remoteNode) handlePong() {
 	r.pingTimeout.Stop()						//stop the timer since we got a response
 	atomic.StoreInt32(&r.pingFailure, 0)		//reset failure counter since we got a response
+}
+
+func (r *remoteNode) sendNodeList() {
+	values := r.parentNode.getRemoteNodes()
+	length := len(values) - 1
+	nodeList := make([]message.ProposedPeer, length, length)
+	x := 0
+	for _, v := range values {
+		n := v.(*remoteNode)
+		if n.config.Id == r.config.Id {
+			continue
+		}
+		host, _, _ := net.SplitHostPort(n.config.IpAddress)
+		nodeList[x] = message.ProposedPeer{Id:n.config.Id, IpAddress:net.JoinHostPort(host,n.config.ServicePort)}
+		x++
+	}
+}
+
+func (r *remoteNode) handleNodeList() {
+
 }
 
 
