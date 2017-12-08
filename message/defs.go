@@ -7,7 +7,8 @@ const (
 	MsgPONG
 	MsgPUT
 	MsgDEL
-	MsgNODELIST
+	MsgSyncReq
+	MsgSyncRsp
 )
 
 type NodeWireMessage struct {
