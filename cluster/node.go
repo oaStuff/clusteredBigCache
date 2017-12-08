@@ -63,9 +63,11 @@ func (node *Node) Start() error {
 		utils.Info(node.logger, "Node ID is "+node.config.Id)
 	}
 
-	node.bringNodeUp()
-	go node.connectToExistingNodes()
+	if err := node.bringNodeUp(); err != nil {
+		return err
+	}
 
+	go node.connectToExistingNodes()
 	if true == node.config.Join { //we are to join an existing cluster
 		if err := node.joinCluster(); err != nil {
 			return err
@@ -79,6 +81,11 @@ func (node *Node) Start() error {
 func (node *Node) ShutDown() {
 	for _, v := range node.remoteNodes.Values() {
 		v.(*remoteNode).shutDown()
+	}
+
+	close(node.joinQueue)
+	if node.serverEndpoint != nil {
+		node.serverEndpoint.Close()
 	}
 }
 
@@ -98,9 +105,17 @@ func (node *Node) joinCluster() error {
 }
 
 //bring up this node
-func (node *Node) bringNodeUp() {
+func (node *Node) bringNodeUp() error {
 	utils.Info(node.logger, "bringing up node "+node.config.Id)
+	var err error
+	node.serverEndpoint, err = net.Listen("tcp", ":"+strconv.Itoa(node.config.LocalPort))
+	if err != nil {
+		utils.Error(node.logger, fmt.Sprintf("unable to Listen on port %d. [%s]", node.config.LocalPort, err.Error()))
+		return err
+	}
 	go node.listen()
+
+	return nil
 }
 
 //event function used by remoteNode to announce the disconnection of itself
@@ -149,12 +164,6 @@ func (node *Node) eventUnableToConnect(config *remoteNodeConfig) {
 //listen for new connections to this node
 func (node *Node) listen() {
 
-	var err error
-	node.serverEndpoint, err = net.Listen("tcp", ":"+strconv.Itoa(node.config.LocalPort))
-	if err != nil {
-		panic(fmt.Sprintf("unable to Listen on port %d. [%s]", node.config.LocalPort, err.Error()))
-	}
-
 	utils.Info(node.logger, fmt.Sprintf("node '%s' is up and running", node.config.Id))
 	errCount := 0
 	for {
@@ -180,7 +189,7 @@ func (node *Node) listen() {
 		remoteNode.start()
 	}
 	utils.Critical(node.logger, "listening loop terminated unexpectedly due to too many errors")
-	panic("listening loop terminated unexpectedly due to too many errors")
+	//panic("listening loop terminated unexpectedly due to too many errors")
 }
 
 func (node *Node) DoTest() {
@@ -208,7 +217,7 @@ func (node *Node) connectToExistingNodes() {
 		//we are here because we don't know this remote node
 		remoteNode := newRemoteNode(&remoteNodeConfig{IpAddress: value.IpAddress,
 			ConnectRetries: node.config.ConnectRetries,
-			Id:             value.Id, Sync: false}, node, node.logger)
+			Id: value.Id, Sync: false}, node, node.logger)
 		remoteNode.join()
 		node.pendingConn.Store(value.Id, value.IpAddress)
 	}

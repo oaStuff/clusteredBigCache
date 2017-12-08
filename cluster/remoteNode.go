@@ -24,6 +24,14 @@ const (
 
 type remoteNodeState uint8
 
+type nodeMetrics struct {
+	pingSent		uint64
+	pingRecieved	uint64
+	pongSent		uint64
+	pongRecieved	uint64
+	dropedMsg		uint64
+}
+
 // remote node configuration
 type remoteNodeConfig struct {
 	Id                    string `json:"id"`
@@ -39,6 +47,7 @@ type remoteNodeConfig struct {
 // remote node definition
 type remoteNode struct {
 	config        *remoteNodeConfig
+	metrics 	  *nodeMetrics
 	connection    *comms.Connection
 	parentNode    *Node
 	msgQueue      chan *message.NodeWireMessage
@@ -72,11 +81,11 @@ func remoteNodeKeyFunc(item interface{}) string {
 //check configurations for sensible defaults
 func checkConfig(logger utils.AppLogger, config *remoteNodeConfig) {
 
-	if config.PingInterval < 5 {
+	if config.PingInterval < 1 {
 		config.PingInterval = 5
 	}
 
-	if config.PingTimeout < 3 {
+	if config.PingTimeout < 1 {
 		config.PingTimeout = 3
 	}
 
@@ -84,7 +93,7 @@ func checkConfig(logger utils.AppLogger, config *remoteNodeConfig) {
 		utils.Warn(logger, "ping timeout is greater than ping interval, pings will NEVER timeout")
 	}
 
-	if config.PingFailureThreshHold < 5 {
+	if config.PingFailureThreshHold == 0 {
 		config.PingFailureThreshHold = 5
 	}
 }
@@ -101,6 +110,7 @@ func newRemoteNode(config *remoteNodeConfig, parent *Node, logger utils.AppLogge
 		parentNode:    parent,
 		logger:        logger,
 		indexInParent: -1,
+		metrics: 		&nodeMetrics{},
 	}
 }
 
@@ -130,6 +140,7 @@ func (r *remoteNode) startPinging() {
 			select {
 			case <-r.pingTimer.C:
 				r.sendMessage(&message.PingMessage{})
+				atomic.AddUint64(&r.metrics.pingSent, 1)
 				r.pingTimeout.Stop()
 				r.pingTimeout.Reset(time.Second * time.Duration(r.config.PingTimeout))
 			case <-r.done: //we have this so that the goroutine would not linger after this node disconnects because
@@ -191,7 +202,7 @@ func (r *remoteNode) start() {
 
 //join a cluster. this will be called if 'join' in the config is set to true
 func (r *remoteNode) join() {
-	utils.Info(r.logger, "joining node via "+r.config.IpAddress)
+	utils.Info(r.logger, "joining remote node via "+r.config.IpAddress)
 
 	go func() { //goroutine will try to connect to the cluster until it succeeds or max tries reached
 		var err error
@@ -309,13 +320,16 @@ func (r *remoteNode) queueMessage(msg *message.NodeWireMessage) {
 	if r.state == nodeStateHandshake { //when in the handshake state only accept MsgVERIFY and MsgVERIFYOK messages
 		code := msg.Code
 		if (code != message.MsgVERIFY) && (code != message.MsgVERIFYOK) {
+			r.metrics.dropedMsg++
 			return
 		}
 	}
 
-	r.msgQueue <- msg
-	//we could modify handleMessage() to run async as in go handleMessage(msg)
-	//instead of queuing the message
+	if r.state != nodeStateDisconnected {
+		r.msgQueue <- msg
+		//we could modify handleMessage() to run async as in go handleMessage(msg)
+		//instead of queuing the message
+	}
 }
 
 //message handler
@@ -389,11 +403,14 @@ func (r *remoteNode) handleVerifyOK() {
 
 //handles ping message from a remote node
 func (r *remoteNode) handlePing() {
+	atomic.AddUint64(&r.metrics.pingRecieved, 1)
 	r.sendMessage(&message.PongMessage{})
+	atomic.AddUint64(&r.metrics.pongSent, 1)
 }
 
 //handle a pong message from the remote node, reset flags
 func (r *remoteNode) handlePong() {
+	atomic.AddUint64(&r.metrics.pongRecieved, 1)
 	r.pingTimeout.Stop()                 //stop the timer since we got a response
 	atomic.StoreInt32(&r.pingFailure, 0) //reset failure counter since we got a response
 }

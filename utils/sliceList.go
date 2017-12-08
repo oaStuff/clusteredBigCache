@@ -39,6 +39,10 @@ func (list *SliceList) Contains(item interface{}) bool {
 	return false
 }
 
+func (list *SliceList) Size() int {
+	return list.size
+}
+
 // Remove removes one or more elements from the list with the supplied indices.
 func (list *SliceList) Remove(index int) {
 
