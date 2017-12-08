@@ -3,8 +3,8 @@ package message
 import "encoding/json"
 
 type SyncRspMessage struct {
-	Code		uint16				`json:"code"`
-	List 		[]ProposedPeer		`json:"list"`
+	Code uint16         `json:"code"`
+	List []ProposedPeer `json:"list"`
 }
 
 func (sc *SyncRspMessage) Serialize() *NodeWireMessage {
@@ -12,7 +12,6 @@ func (sc *SyncRspMessage) Serialize() *NodeWireMessage {
 	return &NodeWireMessage{Code: MsgSyncRsp, Data: data}
 }
 
-func (sc *SyncRspMessage) DeSerialize(msg *NodeWireMessage)  {
+func (sc *SyncRspMessage) DeSerialize(msg *NodeWireMessage) {
 	json.Unmarshal(msg.Data, sc)
 }
-

@@ -1,37 +1,34 @@
 package bigcache
 
 import (
-	"github.com/emirpasic/gods/trees/avltree"
-	"sync"
-	"github.com/emirpasic/gods/utils"
-	"time"
 	"github.com/emirpasic/gods/sets/hashset"
+	"github.com/emirpasic/gods/trees/avltree"
+	"github.com/emirpasic/gods/utils"
+	"sync"
+	"time"
 )
 
-
 type ttlManager struct {
-	shard        *cacheShard
-	timeTree	 *avltree.Tree
-	treeLock	 sync.Mutex
-	timer 		 *time.Timer
-	shardHasher  Hasher
+	shard       *cacheShard
+	timeTree    *avltree.Tree
+	treeLock    sync.Mutex
+	timer       *time.Timer
+	shardHasher Hasher
 }
 
 func newTtlManager(shard *cacheShard, hasher Hasher) *ttlManager {
 	ttl := &ttlManager{
-		shard: 	      shard,
-		timeTree:     avltree.NewWith(utils.UInt64Comparator),
-		treeLock: 	  sync.Mutex{},
-		timer: 		  time.NewTimer(time.Hour * 10), //fire the time on time. just for initialization
-		shardHasher:  hasher,
+		shard:       shard,
+		timeTree:    avltree.NewWith(utils.UInt64Comparator),
+		treeLock:    sync.Mutex{},
+		timer:       time.NewTimer(time.Hour * 10), //fire the time on time. just for initialization
+		shardHasher: hasher,
 	}
 
 	go ttl.eviction()
 
 	return ttl
 }
-
-
 
 // Put item in the tree with key = timestamp
 // Manage collision with hashSet
@@ -40,7 +37,7 @@ func (ttl *ttlManager) put(timestamp uint64, cacheKey string) {
 	ttl.treeLock.Lock()
 	defer ttl.treeLock.Unlock()
 
-	if data, found := ttl.timeTree.Get(timestamp); found {  //a hashset already exist, add to it
+	if data, found := ttl.timeTree.Get(timestamp); found { //a hashset already exist, add to it
 		data.(*hashset.Set).Add(cacheKey)
 		return
 
@@ -56,14 +53,14 @@ func (ttl *ttlManager) put(timestamp uint64, cacheKey string) {
 	}
 
 	//is this timestamp at the head, if so then it displaced the smallest one so reset timer
-	if key,_ := ttl.peek(); key == timestamp {
+	if key, _ := ttl.peek(); key == timestamp {
 		ttl.resetTimer(timestamp)
 	}
 
 }
 
 //Remove a timestamp and key pair from the tree
-func (ttl *ttlManager) remove(timestamp uint64, key string)  {
+func (ttl *ttlManager) remove(timestamp uint64, key string) {
 
 	ttl.treeLock.Lock()
 	defer ttl.treeLock.Unlock()
@@ -79,15 +76,14 @@ func (ttl *ttlManager) remove(timestamp uint64, key string)  {
 				}
 				return
 			}
-			ttl.timeTree.Remove(timestamp)  //remove everything if empty
+			ttl.timeTree.Remove(timestamp) //remove everything if empty
 		}
 	}
-
 
 }
 
 //reset everything to default
-func (ttl *ttlManager) reset()  {
+func (ttl *ttlManager) reset() {
 	ttl.treeLock.Lock()
 	ttl.timeTree.Clear()
 	ttl.stopTimer()
@@ -95,20 +91,20 @@ func (ttl *ttlManager) reset()  {
 }
 
 //goroutine that handles eviction
-func (ttl *ttlManager) eviction()  {
+func (ttl *ttlManager) eviction() {
 
 	for range ttl.timer.C {
 
-		ttl.treeLock.Lock()				//acquire tree lock
-		if ttl.timeTree.Size() < 1 {	//if tree is empty move on
+		ttl.treeLock.Lock()          //acquire tree lock
+		if ttl.timeTree.Size() < 1 { //if tree is empty move on
 			ttl.treeLock.Unlock()
 			continue
 		}
 
-		key, value := ttl.peek()		//peek the value at the head(the tree keys are ordered)
-		ttl.evict(key,value)
+		key, value := ttl.peek() //peek the value at the head(the tree keys are ordered)
+		ttl.evict(key, value)
 
-		for {							//loop through to ensure all expired keys are removed in this single step
+		for { //loop through to ensure all expired keys are removed in this single step
 
 			if ttl.timeTree.Size() < 1 {
 				//log.Println("breaking...")
@@ -120,9 +116,9 @@ func (ttl *ttlManager) eviction()  {
 			interval := nextExpiryTime - uint64(time.Now().Unix())
 			if 0 == interval {
 				ttl.evict(key, value)
-			}else{
-				ttl.resetTimer(nextExpiryTime) 	  //TODO: should this not just call Reset() directly? seen that the timer just fired
-				break						 	  // TODO: and would be in the expired state
+			} else {
+				ttl.resetTimer(nextExpiryTime) //TODO: should this not just call Reset() directly? seen that the timer just fired
+				break                          // TODO: and would be in the expired state
 			}
 		}
 
@@ -144,7 +140,7 @@ func (ttl *ttlManager) resetTimer(timeStamp uint64) {
 }
 
 //Stop the eviction timer
-func (ttl *ttlManager) stopTimer()  {
+func (ttl *ttlManager) stopTimer() {
 	if !ttl.timer.Stop() {
 		select {
 		case <-ttl.timer.C:
@@ -162,10 +158,10 @@ func (ttl *ttlManager) peek() (interface{}, interface{}) {
 }
 
 //Do the eviction from the tree and parent shard
-func (ttl *ttlManager) evict(key, value interface{})  {
+func (ttl *ttlManager) evict(key, value interface{}) {
 
 	set := value.(*hashset.Set)
-	for _, v := range set.Values(){	// remove all data in the hashset for this eviction
+	for _, v := range set.Values() { // remove all data in the hashset for this eviction
 		keyHash := ttl.shardHasher.Sum64(v.(string))
 		ttl.shard.evictDel(v.(string), keyHash)
 		//log.Printf("removed key %s with tree key %d in shard [%d]", v.(string),key, ttl.shard.sharedNum )
@@ -173,5 +169,3 @@ func (ttl *ttlManager) evict(key, value interface{})  {
 
 	ttl.timeTree.Remove(key)
 }
-
-

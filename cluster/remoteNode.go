@@ -2,21 +2,20 @@ package cluster
 
 import (
 	"fmt"
-	"sync/atomic"
-	"sync"
-	"strconv"
 	"net"
+	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"encoding/binary"
 	"github.com/oaStuff/clusteredBigCache/comms"
-	"github.com/oaStuff/clusteredBigCache/utils"
 	"github.com/oaStuff/clusteredBigCache/message"
-
+	"github.com/oaStuff/clusteredBigCache/utils"
 )
 
 const (
-	nodeStateConnecting         = 	iota
+	nodeStateConnecting = iota
 	nodeStateConnected
 	nodeStateDisconnected
 	nodeStateShuttingDown
@@ -25,39 +24,37 @@ const (
 
 type remoteNodeState uint8
 
-
 // remote node configuration
 type remoteNodeConfig struct {
-	Id                    	string 		`json:"id"`
-	IpAddress             	string 		`json:"ip_address"`
-	PingFailureThreshHold 	int32  		`json:"ping_failure_thresh_hold"`
-	PingInterval          	int    		`json:"ping_interval"`
-	PingTimeout           	int    		`json:"ping_timeout"`
-	ConnectRetries        	int    		`json:"connect_retries"`
-	ServicePort				string 		`json:"service_port"`
-	Sync	 				bool		`json:"sync"`
+	Id                    string `json:"id"`
+	IpAddress             string `json:"ip_address"`
+	PingFailureThreshHold int32  `json:"ping_failure_thresh_hold"`
+	PingInterval          int    `json:"ping_interval"`
+	PingTimeout           int    `json:"ping_timeout"`
+	ConnectRetries        int    `json:"connect_retries"`
+	ServicePort           string `json:"service_port"`
+	Sync                  bool   `json:"sync"`
 }
-
 
 // remote node definition
 type remoteNode struct {
-	config        		*remoteNodeConfig
-	connection    		*comms.Connection
-	parentNode    		*Node
-	msgQueue 	  		chan *message.NodeWireMessage
-	indexInParent 		int
-	logger        		utils.AppLogger
-	state         		remoteNodeState
-	stateLock			sync.Mutex
-	done				chan struct{}
-	pingTimer			*time.Ticker		//used to send ping message to remote
-	pingTimeout			*time.Timer			//used to monitor ping response
-	pingFailure			int32				//count the number of pings without response
+	config        *remoteNodeConfig
+	connection    *comms.Connection
+	parentNode    *Node
+	msgQueue      chan *message.NodeWireMessage
+	indexInParent int
+	logger        utils.AppLogger
+	state         remoteNodeState
+	stateLock     sync.Mutex
+	done          chan struct{}
+	pingTimer     *time.Ticker //used to send ping message to remote
+	pingTimeout   *time.Timer  //used to monitor ping response
+	pingFailure   int32        //count the number of pings without response
 }
 
 //used by SliceList to check for equality of items in the list
 func remoteNodeEqualFunc(item1, item2 interface{}) bool {
-	if (nil == item1) || (nil == item2){
+	if (nil == item1) || (nil == item2) {
 		return false
 	}
 	return item1.(*remoteNode).config.Id == item2.(*remoteNode).config.Id
@@ -73,7 +70,7 @@ func remoteNodeKeyFunc(item interface{}) string {
 }
 
 //check configurations for sensible defaults
-func checkConfig(logger utils.AppLogger, config *remoteNodeConfig)  {
+func checkConfig(logger utils.AppLogger, config *remoteNodeConfig) {
 
 	if config.PingInterval < 5 {
 		config.PingInterval = 5
@@ -92,39 +89,36 @@ func checkConfig(logger utils.AppLogger, config *remoteNodeConfig)  {
 	}
 }
 
-
 //create a new remoteNode object
 func newRemoteNode(config *remoteNodeConfig, parent *Node, logger utils.AppLogger) *remoteNode {
 	checkConfig(logger, config)
 	return &remoteNode{
-		config:     config,
-		msgQueue:   make(chan *message.NodeWireMessage, 1024),
-		done:		make(chan struct{}, 2),
-		state:      nodeStateDisconnected,
-		stateLock:	sync.Mutex{},
-		parentNode: parent,
-		logger:     logger,
+		config:        config,
+		msgQueue:      make(chan *message.NodeWireMessage, 1024),
+		done:          make(chan struct{}, 2),
+		state:         nodeStateDisconnected,
+		stateLock:     sync.Mutex{},
+		parentNode:    parent,
+		logger:        logger,
 		indexInParent: -1,
 	}
 }
 
 //set the state of this remoteNode. always use this method because of the lock
-func (r *remoteNode) setState(state remoteNodeState)  {
+func (r *remoteNode) setState(state remoteNodeState) {
 	r.stateLock.Lock()
 	defer r.stateLock.Unlock()
 
 	r.state = state
 }
 
-
 //just set the connection for this remoteNode
-func (r *remoteNode) setConnection(conn *comms.Connection)  {
+func (r *remoteNode) setConnection(conn *comms.Connection) {
 	r.connection = conn
 }
 
-
 //set up the pinging and ping response go routine
-func (r *remoteNode) startPinging()  {
+func (r *remoteNode) startPinging() {
 	r.pingTimer = time.NewTicker(time.Second * time.Duration(r.config.PingInterval))
 	r.pingTimeout = time.NewTimer(time.Second * time.Duration(r.config.PingTimeout))
 
@@ -138,8 +132,8 @@ func (r *remoteNode) startPinging()  {
 				r.sendMessage(&message.PingMessage{})
 				r.pingTimeout.Stop()
 				r.pingTimeout.Reset(time.Second * time.Duration(r.config.PingTimeout))
-			case <-r.done:		//we have this so that the goroutine would not linger after this node disconnects because
-				done = true		//of the blocking channel in the above case statement
+			case <-r.done: //we have this so that the goroutine would not linger after this node disconnects because
+				done = true //of the blocking channel in the above case statement
 			}
 
 			if done {
@@ -168,8 +162,8 @@ func (r *remoteNode) startPinging()  {
 					fault = true
 					break
 				}
-			case <-r.done:		//we have this so that the goroutine would not linger after this node disconnects because
-				done = true		//of the blocking channel in the above case statement
+			case <-r.done: //we have this so that the goroutine would not linger after this node disconnects because
+				done = true //of the blocking channel in the above case statement
 			}
 
 			if done || fault {
@@ -187,19 +181,19 @@ func (r *remoteNode) startPinging()  {
 }
 
 //kick start this remoteNode entity
-func (r *remoteNode) start()  {
+func (r *remoteNode) start() {
 	go r.networkConsumer()
 	go r.handleMessage()
 	r.sendVerify()
-	r.startPinging()	//start this early here so that clients that connected without responding to PINGS will be diconnected
-						//ping response from clients has not yet sent MsgVERIFY will be discarded
+	r.startPinging() //start this early here so that clients that connected without responding to PINGS will be diconnected
+	//ping response from clients has not yet sent MsgVERIFY will be discarded
 }
 
 //join a cluster. this will be called if 'join' in the config is set to true
 func (r *remoteNode) join() {
-	utils.Info(r.logger, "joining node via " + r.config.IpAddress )
+	utils.Info(r.logger, "joining node via "+r.config.IpAddress)
 
-	go func() {				//goroutine will try to connect to the cluster until it succeeds or max tries reached
+	go func() { //goroutine will try to connect to the cluster until it succeeds or max tries reached
 		var err error
 		tries := 0
 		for {
@@ -217,7 +211,7 @@ func (r *remoteNode) join() {
 				}
 			}
 		}
-		utils.Info(r.logger, "connected to node via " + r.config.IpAddress)
+		utils.Info(r.logger, "connected to node via "+r.config.IpAddress)
 		r.start()
 	}()
 }
@@ -225,8 +219,8 @@ func (r *remoteNode) join() {
 //handles to low level connection to remote node
 func (r *remoteNode) connect() error {
 	var err error
-	utils.Info(r.logger, "connecting to " + r.config.IpAddress)
-	r.connection, err = comms.NewConnection(r.config.IpAddress, time.Second * 5)
+	utils.Info(r.logger, "connecting to "+r.config.IpAddress)
+	r.connection, err = comms.NewConnection(r.config.IpAddress, time.Second*5)
 	if err != nil {
 		return err
 	}
@@ -235,7 +229,6 @@ func (r *remoteNode) connect() error {
 
 	return nil
 }
-
 
 //this is a goroutine dedicated in reading data fromt the network
 //it does this by reading a 4bytes header which is
@@ -276,19 +269,18 @@ func (r *remoteNode) networkConsumer() {
 // bytes 5 upwards == message content
 func (r *remoteNode) sendMessage(m message.NodeMessage) {
 	msg := m.Serialize()
-	data := make([]byte, 4 + len(msg.Data))
-	binary.LittleEndian.PutUint16(data, uint16(len(msg.Data) + 2))  //the 2 is for the message code
-	binary.LittleEndian.PutUint16(data[2:],msg.Code)
+	data := make([]byte, 4+len(msg.Data))
+	binary.LittleEndian.PutUint16(data, uint16(len(msg.Data)+2)) //the 2 is for the message code
+	binary.LittleEndian.PutUint16(data[2:], msg.Code)
 	copy(data[4:], msg.Data)
 	if err := r.connection.SendData(data); err != nil {
-		utils.Critical(r.logger,"unexpected error while sending data [" + err.Error() + "]")
+		utils.Critical(r.logger, "unexpected error while sending data ["+err.Error()+"]")
 		r.shutDown()
 	}
 }
 
-
 //bring down the remote node. should not be called from outside networkConsumer()
-func (r *remoteNode) shutDown()  {
+func (r *remoteNode) shutDown() {
 	r.stateLock.Lock()
 	defer r.stateLock.Unlock()
 
@@ -308,13 +300,13 @@ func (r *remoteNode) shutDown()  {
 	}
 	close(r.done)
 	close(r.msgQueue)
-	utils.Info(r.logger, fmt.Sprintf("shutting down remote node '%s' ",r.config.Id))
+	utils.Info(r.logger, fmt.Sprintf("shutting down remote node '%s' ", r.config.Id))
 }
 
 //just queue the message in a channel
 func (r *remoteNode) queueMessage(msg *message.NodeWireMessage) {
 
-	if r.state == nodeStateHandshake {	//when in the handshake state only accept MsgVERIFY and MsgVERIFYOK messages
+	if r.state == nodeStateHandshake { //when in the handshake state only accept MsgVERIFY and MsgVERIFYOK messages
 		code := msg.Code
 		if (code != message.MsgVERIFY) && (code != message.MsgVERIFYOK) {
 			return
@@ -326,9 +318,8 @@ func (r *remoteNode) queueMessage(msg *message.NodeWireMessage) {
 	//instead of queuing the message
 }
 
-
 //message handler
-func (r *remoteNode) handleMessage()  {
+func (r *remoteNode) handleMessage() {
 
 	for msg := range r.msgQueue {
 		switch msg.Code {
@@ -348,17 +339,15 @@ func (r *remoteNode) handleMessage()  {
 		}
 	}
 
-	utils.Info(r.logger,fmt.Sprintf("terminated message handler goroutine for '%s'", r.config.Id))
+	utils.Info(r.logger, fmt.Sprintf("terminated message handler goroutine for '%s'", r.config.Id))
 }
-
 
 //send a verify messge. this is always the first message to be sent once a connection is established.
 func (r *remoteNode) sendVerify() {
-	verifyMsgRsp := message.VerifyMessage{Id:r.parentNode.config.Id,
-						ServicePort:strconv.Itoa(r.parentNode.config.LocalPort)}
+	verifyMsgRsp := message.VerifyMessage{Id: r.parentNode.config.Id,
+		ServicePort: strconv.Itoa(r.parentNode.config.LocalPort)}
 	r.sendMessage(&verifyMsgRsp)
 }
-
 
 //use the verify message been sent by a remote node to configure the node in this system
 func (r *remoteNode) handleVerify(msg *message.NodeWireMessage) {
@@ -367,31 +356,30 @@ func (r *remoteNode) handleVerify(msg *message.NodeWireMessage) {
 	verifyMsgRsp.DeSerialize(msg)
 	r.config.Id = verifyMsgRsp.Id
 	r.config.ServicePort = verifyMsgRsp.ServicePort
-	if !r.parentNode.eventVerifyRemoteNode(r) {			//seek parent's node approval on this
+	if !r.parentNode.eventVerifyRemoteNode(r) { //seek parent's node approval on this
 		utils.Warn(r.logger, fmt.Sprintf("node already has remote node '%s' so shutdown new connection", r.config.Id))
 		r.shutDown()
 		return
 	}
 
 	r.setState(nodeStateConnected)
-	r.sendMessage(&message.VerifyOKMessage{})	//must reply back with a verify OK message if all goes well
+	r.sendMessage(&message.VerifyOKMessage{}) //must reply back with a verify OK message if all goes well
 }
 
-
 //handles verify OK from a remote node. this allows this system to sync with remote node
-func (r *remoteNode) handleVerifyOK()  {
+func (r *remoteNode) handleVerifyOK() {
 	go func() {
 		count := 0
 		for r.state == nodeStateHandshake {
 			time.Sleep(time.Second * 1)
 			count++
 			if count >= 5 {
-				utils.Warn(r.logger, fmt.Sprintf("node '%s' state refused to change out of handshake",r.config.Id))
+				utils.Warn(r.logger, fmt.Sprintf("node '%s' state refused to change out of handshake", r.config.Id))
 				break
 			}
 		}
 		if count < 5 {
-			if r.config.Sync {		//only sync if you are joining the cluster
+			if r.config.Sync { //only sync if you are joining the cluster
 				r.sendMessage(&message.SyncReqMessage{})
 			}
 		}
@@ -406,14 +394,14 @@ func (r *remoteNode) handlePing() {
 
 //handle a pong message from the remote node, reset flags
 func (r *remoteNode) handlePong() {
-	r.pingTimeout.Stop()						//stop the timer since we got a response
-	atomic.StoreInt32(&r.pingFailure, 0)		//reset failure counter since we got a response
+	r.pingTimeout.Stop()                 //stop the timer since we got a response
+	atomic.StoreInt32(&r.pingFailure, 0) //reset failure counter since we got a response
 }
 
 //build and send a sync message
 func (r *remoteNode) sendSyncResponse() {
-	values := r.parentNode.getRemoteNodes()	//call this because of the lock that needs to be held by parentNode
-	length := len(values) - 1				//minus 1 beacause we dont want to send our own info
+	values := r.parentNode.getRemoteNodes() //call this because of the lock that needs to be held by parentNode
+	length := len(values) - 1               //minus 1 beacause we dont want to send our own info
 	nodeList := make([]message.ProposedPeer, length, length)
 	x := 0
 	for _, v := range values {
@@ -422,7 +410,7 @@ func (r *remoteNode) sendSyncResponse() {
 			continue
 		}
 		host, _, _ := net.SplitHostPort(n.config.IpAddress)
-		nodeList[x] = message.ProposedPeer{Id:n.config.Id, IpAddress:net.JoinHostPort(host,n.config.ServicePort)}
+		nodeList[x] = message.ProposedPeer{Id: n.config.Id, IpAddress: net.JoinHostPort(host, n.config.ServicePort)}
 		x++
 	}
 
@@ -432,7 +420,7 @@ func (r *remoteNode) sendSyncResponse() {
 }
 
 //handles sync request by just sending a sync response
-func (r *remoteNode) handleSyncRequest()  {
+func (r *remoteNode) handleSyncRequest() {
 	r.sendSyncResponse()
 }
 
@@ -445,6 +433,3 @@ func (r *remoteNode) handleSyncResponse(msg *message.NodeWireMessage) {
 		r.parentNode.joinQueue <- &syncMsg.List[x]
 	}
 }
-
-
-

@@ -1,26 +1,26 @@
 package test
 
 import (
-	"testing"
-	"github.com/oaStuff/clusteredBigCache/bigcache"
-	"time"
 	"bytes"
+	"github.com/oaStuff/clusteredBigCache/bigcache"
+	"testing"
+	"time"
 )
 
-func TestReplacingSameKey(t *testing.T)  {
-	bc,_ := bigcache.NewBigCache(bigcache.DefaultConfig())
-	bc.Set("one", []byte("one"), time.Second * 5)
-	bc.Set("one", []byte("three"), time.Second * 5)
+func TestReplacingSameKey(t *testing.T) {
+	bc, _ := bigcache.NewBigCache(bigcache.DefaultConfig())
+	bc.Set("one", []byte("one"), time.Second*5)
+	bc.Set("one", []byte("three"), time.Second*5)
 	val, _ := bc.Get("one")
 	if !bytes.Equal(val, []byte("three")) {
 		t.Error("returned value ought to be equal ot 'three'")
 	}
 }
 
-func TestReplacingSameKeyWithDiffExpiry(t *testing.T)  {
-	bc,_ := bigcache.NewBigCache(bigcache.DefaultConfig())
-	bc.Set("one", []byte("one"), time.Second * 5)
-	bc.Set("one", []byte("three"), time.Second * 3)
+func TestReplacingSameKeyWithDiffExpiry(t *testing.T) {
+	bc, _ := bigcache.NewBigCache(bigcache.DefaultConfig())
+	bc.Set("one", []byte("one"), time.Second*5)
+	bc.Set("one", []byte("three"), time.Second*3)
 	val, _ := bc.Get("one")
 	if !bytes.Equal(val, []byte("three")) {
 		t.Error("returned value ought to be equal ot 'three'")
@@ -32,9 +32,9 @@ func TestReplacingSameKeyWithDiffExpiry(t *testing.T)  {
 	}
 }
 
-func TestRemove(t *testing.T)  {
-	bc,_ := bigcache.NewBigCache(bigcache.DefaultConfig())
-	bc.Set("one", []byte("one"), time.Second * 5)
+func TestRemove(t *testing.T) {
+	bc, _ := bigcache.NewBigCache(bigcache.DefaultConfig())
+	bc.Set("one", []byte("one"), time.Second*5)
 	bc.Delete("one")
 	val, _ := bc.Get("one")
 	if nil != val {
@@ -42,9 +42,9 @@ func TestRemove(t *testing.T)  {
 	}
 }
 
-func TestExpiry(t *testing.T)  {
-	bc,_ := bigcache.NewBigCache(bigcache.DefaultConfig())
-	bc.Set("one", []byte("one"), time.Second * 5)
+func TestExpiry(t *testing.T) {
+	bc, _ := bigcache.NewBigCache(bigcache.DefaultConfig())
+	bc.Set("one", []byte("one"), time.Second*5)
 	time.Sleep(time.Second * 3)
 	val, _ := bc.Get("one")
 	if !bytes.Equal(val, []byte("one")) {
@@ -56,4 +56,3 @@ func TestExpiry(t *testing.T)  {
 		t.Error("value ought to have expired")
 	}
 }
-

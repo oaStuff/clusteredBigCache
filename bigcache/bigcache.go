@@ -47,7 +47,6 @@ func newBigCache(config Config, clock clock) (*BigCache, error) {
 		maxShardSize: uint32(config.maximumShardSize()),
 	}
 
-
 	var onRemove func(wrappedEntry []byte)
 	if config.OnRemove == nil {
 		onRemove = cache.notProvidedOnRemove
@@ -56,7 +55,7 @@ func newBigCache(config Config, clock clock) (*BigCache, error) {
 	}
 
 	for i := 0; i < config.Shards; i++ {
-		cache.shards[i] = initNewShard(config, onRemove, clock, uint64(i + 1))
+		cache.shards[i] = initNewShard(config, onRemove, clock, uint64(i+1))
 	}
 
 	//if config.CleanWindow > 0 {

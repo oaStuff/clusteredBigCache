@@ -12,8 +12,8 @@ const (
 )
 
 type NodeWireMessage struct {
-	Code	uint16
-	Data 	[]byte
+	Code uint16
+	Data []byte
 }
 
 type NodeMessage interface {
@@ -22,7 +22,6 @@ type NodeMessage interface {
 }
 
 type ProposedPeer struct {
-	Id			string
-	IpAddress	string
+	Id        string
+	IpAddress string
 }
-

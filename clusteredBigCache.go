@@ -6,14 +6,14 @@ import (
 )
 
 type ClusteredBigCache struct {
-	config 		*ClusterConfig
-	node 		*cluster.Node
-	started		bool
-	logger 		utils.AppLogger
+	config  *ClusterConfig
+	node    *cluster.Node
+	started bool
+	logger  utils.AppLogger
 }
 
 func New(config *ClusterConfig, logger utils.AppLogger) *ClusteredBigCache {
-	return &ClusteredBigCache{config:config, logger:logger}
+	return &ClusteredBigCache{config: config, logger: logger}
 }
 
 func (cbc *ClusteredBigCache) Start() error {
@@ -26,11 +26,11 @@ func (cbc *ClusteredBigCache) Start() error {
 	return nil
 }
 
-func (cbc *ClusteredBigCache) ShutDown()  {
+func (cbc *ClusteredBigCache) ShutDown() {
 	cbc.node.ShutDown()
 }
 
-func (cbc *ClusteredBigCache) DoTest()  {
+func (cbc *ClusteredBigCache) DoTest() {
 	cbc.node.DoTest()
 }
 

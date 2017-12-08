@@ -1,13 +1,13 @@
 package message
 
 type SyncReqMessage struct {
-	code		uint16
+	code uint16
 }
 
 func (sc *SyncReqMessage) Serialize() *NodeWireMessage {
 	return &NodeWireMessage{Code: MsgSyncReq}
 }
 
-func (sc *SyncReqMessage) DeSerialize(msg *NodeWireMessage)  {
+func (sc *SyncReqMessage) DeSerialize(msg *NodeWireMessage) {
 	sc.code = msg.Code
 }
