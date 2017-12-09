@@ -4,8 +4,6 @@ import "github.com/oaStuff/clusteredBigCache/cluster"
 
 type ClusterConfig struct {
 	cluster.NodeConfig
-	ReplicationFactor uint64 `json:"replication_factor"`
-	WriteAck          bool   `json:"write_ack"`
 }
 
 func DefaultClusterConfig() *ClusterConfig {
@@ -16,8 +14,8 @@ func DefaultClusterConfig() *ClusterConfig {
 			LocalPort:      9911,
 			ConnectRetries: 5,
 			TerminateOnListenerExit: false,
+			ReplicationFactor: 1,
+			WriteAck:          true,
 		},
-		ReplicationFactor: 1,
-		WriteAck:          true,
 	}
 }

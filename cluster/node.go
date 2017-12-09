@@ -11,6 +11,7 @@ import (
 	"github.com/oaStuff/clusteredBigCache/comms"
 	"github.com/oaStuff/clusteredBigCache/message"
 	"github.com/oaStuff/clusteredBigCache/utils"
+	"time"
 )
 
 //node configuration
@@ -23,6 +24,8 @@ type NodeConfig struct {
 	BindAll        bool     `json:"bind_all"`
 	ConnectRetries int      `json:"connect_retries"`
 	TerminateOnListenerExit	bool 	`json:"terminate_on_listener_exit"`
+	ReplicationFactor int `json:"replication_factor"`
+	WriteAck          bool   `json:"write_ack"`
 }
 
 //node definition
@@ -225,4 +228,25 @@ func (node *Node) connectToExistingNodes() {
 		remoteNode.join()
 		node.pendingConn.Store(value.Id, value.IpAddress)
 	}
+}
+
+func (node *Node) PutData(key string, data []byte, duration time.Duration) error {
+	if node.config.ReplicationFactor == 1 {
+		return node.cache.Set(key, data, duration)
+	}
+
+	if node.remoteNodes.Size() < node.config.ReplicationFactor {
+
+	}
+
+
+	return nil
+}
+
+func (node *Node) GetData(key string) ([]byte, error) {
+	return nil, nil
+}
+
+func (node *Node) DeleteData(key string) error {
+	return nil
 }

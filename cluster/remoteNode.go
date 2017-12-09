@@ -432,7 +432,7 @@ func (r *remoteNode) sendSyncResponse() {
 	}
 
 	if len(nodeList) > 0 {
-		r.sendMessage(&message.SyncRspMessage{List: nodeList})
+		r.sendMessage(&message.SyncRspMessage{List: nodeList, ReplicationFactor: r.parentNode.config.ReplicationFactor})
 	}
 }
 
