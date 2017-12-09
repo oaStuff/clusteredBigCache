@@ -39,3 +39,12 @@ func TestVerifyMessage(t *testing.T) {
 		t.Error("VerifyMessage serialization and deserialization not working properly")
 	}
 }
+
+func TestDeleteMessage(t *testing.T) {
+	msg := DeleteMessage{Key: "key_ab"}
+	newMsg := DeleteMessage{}
+	newMsg.DeSerialize(msg.Serialize())
+	if !reflect.DeepEqual(msg, newMsg) {
+		t.Error("DeleteMessage serialization and deserialization not working properly")
+	}
+}
