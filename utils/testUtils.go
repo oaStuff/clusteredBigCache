@@ -1,4 +1,4 @@
-package cluster
+package utils
 
 import (
 	"net"
@@ -9,28 +9,28 @@ import (
 	"time"
 )
 
-type testClient struct {
+type TestClient struct {
 	conn *net.TCPConn
 	respondToPings	bool
 }
 
-type testServer struct {
-	testClient
+type TestServer struct {
+	TestClient
 	port			int
 	started			chan struct{}
 }
 
-func newTestClient() *testClient {
-	return &testClient{}
+func NewTestClient() *TestClient {
+	return &TestClient{}
 }
 
-func newTestServer(port int, respondToPings bool) *testServer {
-	return &testServer{port: port,
-	testClient: testClient{respondToPings: respondToPings},
+func NewTestServer(port int, respondToPings bool) *TestServer {
+	return &TestServer{port: port,
+	TestClient: TestClient{respondToPings: respondToPings},
 	started: make(chan struct{})}
 }
 
-func (s *testServer) start() error {
+func (s *TestServer) Start() error {
 	l, err := net.Listen("tcp", net.JoinHostPort("", strconv.Itoa(s.port)))
 	if err != nil {
 		return err
@@ -46,13 +46,13 @@ func (s *testServer) start() error {
 	return nil
 }
 
-func (c *testClient) close()  {
+func (c *TestClient) Close()  {
 	if c.conn != nil {
 		c.conn.Close()
 	}
 }
 
-func (c *testServer) sendVerifyMessage(id string)  {
+func (c *TestServer) SendVerifyMessage(id string)  {
 	<-c.started
 	verifyMsg := message.VerifyMessage{Id: id, ServicePort: "1111"}
 	wMsg := verifyMsg.Serialize()
@@ -63,7 +63,7 @@ func (c *testServer) sendVerifyMessage(id string)  {
 	c.conn.Write(d)
 }
 
-func (c *testClient) readNetwork()  {
+func (c *TestClient) readNetwork()  {
 
 	go func() {
 		for range time.NewTicker(time.Second * 1).C {

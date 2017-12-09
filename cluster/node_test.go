@@ -3,16 +3,17 @@ package cluster
 import (
 	"testing"
 	"time"
+	"github.com/oaStuff/clusteredBigCache/utils"
 )
 
 func TestNodeConncting(t *testing.T)  {
 
-	s := newTestServer(9093, true)
-	err := s.start()
+	s := utils.NewTestServer(9093, true)
+	err := s.Start()
 	if err != nil {
 		panic(err)
 	}
-	defer s.close()
+	defer s.Close()
 
 	node := NewNode(&NodeConfig{Join: true, LocalPort: 9999, ConnectRetries: 2}, nil)
 	if err := node.Start(); err == nil {
@@ -28,7 +29,7 @@ func TestNodeConncting(t *testing.T)  {
 		return
 	}
 
-	s.sendVerifyMessage("server1")
+	s.SendVerifyMessage("server1")
 	time.Sleep(time.Second * 1)
 	if node.remoteNodes.Size() != 1 {
 		t.Error("only one node ought to be connected")

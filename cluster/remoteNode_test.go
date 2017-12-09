@@ -3,6 +3,7 @@ package cluster
 import (
 	"testing"
 	"time"
+	"github.com/oaStuff/clusteredBigCache/utils"
 )
 
 func TestCheckConfig(t *testing.T)  {
@@ -24,9 +25,9 @@ func TestCheckConfig(t *testing.T)  {
 
 func TestRemoteNode(t *testing.T)  {
 
-	svr := newTestServer(9091, true)
-	svr.start()
-	defer svr.close()
+	svr := utils.NewTestServer(9091, true)
+	svr.Start()
+	defer svr.Close()
 
 	node := NewNode(&NodeConfig{LocalPort: 9999, ConnectRetries: 2}, nil)
 	rn := newRemoteNode(&remoteNodeConfig{IpAddress: "localhost:9091", Sync: false}, node, nil)
@@ -45,7 +46,7 @@ func TestRemoteNode(t *testing.T)  {
 	rn.start()
 	defer rn.shutDown()
 
-	svr.sendVerifyMessage("server1")
+	svr.SendVerifyMessage("server1")
 	time.Sleep(time.Second * 1)
 	if rn.state != nodeStateConnected {
 		t.Error("node ought to be in connected state")
@@ -61,12 +62,12 @@ func TestRemoteNode(t *testing.T)  {
 }
 
 func TestNoPingResponseDisconnt(t *testing.T)  {
-	s := newTestServer(9092, false)
-	err := s.start()
+	s := utils.NewTestServer(9092, false)
+	err := s.Start()
 	if err != nil {
 		panic(err)
 	}
-	defer s.close()
+	defer s.Close()
 
 
 	node := NewNode(&NodeConfig{LocalPort: 9999, ConnectRetries: 2}, nil)
