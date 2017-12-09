@@ -15,6 +15,7 @@ func DefaultClusterConfig() *ClusterConfig {
 			BindAll:        true,
 			LocalPort:      9911,
 			ConnectRetries: 5,
+			TerminateOnListenerExit: false,
 		},
 		ReplicationFactor: 1,
 		WriteAck:          true,

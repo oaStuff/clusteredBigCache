@@ -22,6 +22,7 @@ type NodeConfig struct {
 	LocalPort      int      `json:"local_port"`
 	BindAll        bool     `json:"bind_all"`
 	ConnectRetries int      `json:"connect_retries"`
+	TerminateOnListenerExit	bool 	`json:"terminate_on_listener_exit"`
 }
 
 //node definition
@@ -97,8 +98,8 @@ func (node *Node) joinCluster() error {
 	}
 
 	remoteNode := newRemoteNode(&remoteNodeConfig{IpAddress: node.config.JoinIp,
-		ConnectRetries: node.config.ConnectRetries,
-		Sync:           true}, node, node.logger)
+												ConnectRetries: node.config.ConnectRetries,
+												Sync: true}, node, node.logger)
 	remoteNode.join()
 
 	return nil
@@ -106,15 +107,16 @@ func (node *Node) joinCluster() error {
 
 //bring up this node
 func (node *Node) bringNodeUp() error {
-	utils.Info(node.logger, "bringing up node "+node.config.Id)
+
 	var err error
+	utils.Info(node.logger, "bringing up node "+node.config.Id)
 	node.serverEndpoint, err = net.Listen("tcp", ":"+strconv.Itoa(node.config.LocalPort))
 	if err != nil {
 		utils.Error(node.logger, fmt.Sprintf("unable to Listen on port %d. [%s]", node.config.LocalPort, err.Error()))
 		return err
 	}
-	go node.listen()
 
+	go node.listen()
 	return nil
 }
 
@@ -181,15 +183,17 @@ func (node *Node) listen() {
 		//build a new remoteNode from this new connection
 		tcpConn := conn.(*net.TCPConn)
 		remoteNode := newRemoteNode(&remoteNodeConfig{IpAddress: tcpConn.RemoteAddr().String(),
-			ConnectRetries: node.config.ConnectRetries,
-			Sync:           false}, node, node.logger)
+														ConnectRetries: node.config.ConnectRetries,
+														Sync: false}, node, node.logger)
 		remoteNode.setState(nodeStateHandshake)
 		remoteNode.setConnection(comms.WrapConnection(tcpConn))
 		utils.Info(node.logger, fmt.Sprintf("new connection from remote '%s'", tcpConn.RemoteAddr().String()))
 		remoteNode.start()
 	}
 	utils.Critical(node.logger, "listening loop terminated unexpectedly due to too many errors")
-	//panic("listening loop terminated unexpectedly due to too many errors")
+	if node.config.TerminateOnListenerExit {
+		panic("listening loop terminated unexpectedly due to too many errors")
+	}
 }
 
 func (node *Node) DoTest() {
