@@ -263,14 +263,14 @@ func (node *ClusteredBigCache) connectToExistingNodes() {
 	}
 }
 
-func (node *ClusteredBigCache) PutData(key string, data []byte, duration time.Duration) error {
+func (node *ClusteredBigCache) Put(key string, data []byte, duration time.Duration) error {
 	if node.config.ReplicationFactor == 1 {
 		_, err := node.cache.Set(key, data, duration)
 		return err
 	}
 
 	node.lock.Lock()
-	if node.remoteNodes.Size() < node.config.ReplicationFactor {
+	if node.remoteNodes.Size() < (node.config.ReplicationFactor -1) {
 		node.lock.Unlock()
 		return ErrNotEnoughReplica
 	}
@@ -293,7 +293,7 @@ func (node *ClusteredBigCache) PutData(key string, data []byte, duration time.Du
 	return nil
 }
 
-func (node *ClusteredBigCache) GetData(key string) ([]byte, error) {
+func (node *ClusteredBigCache) Get(key string) ([]byte, error) {
 	data, err := node.cache.Get(key)
 	if err == nil {
 		return data, nil
@@ -321,7 +321,7 @@ func (node *ClusteredBigCache) GetData(key string) ([]byte, error) {
 	return replyData.data, nil
 }
 
-func (node *ClusteredBigCache) DeleteData(key string) error {
+func (node *ClusteredBigCache) Delete(key string) error {
 	return nil
 }
 
