@@ -1,4 +1,4 @@
-package cluster
+package clusteredBigCache
 
 import (
 	"errors"
@@ -14,8 +14,8 @@ import (
 	"time"
 )
 
-//node configuration
-type NodeConfig struct {
+//Cluster configuration
+type ClusteredBigCacheConfig struct {
 	Id             string   `json:"id"`
 	Join           bool     `json:"join"`
 	JoinIp         string   `json:"join_ip"`
@@ -28,9 +28,9 @@ type NodeConfig struct {
 	WriteAck          bool   `json:"write_ack"`
 }
 
-//node definition
-type Node struct {
-	config         *NodeConfig
+//Cluster definition
+type ClusteredBigCache struct {
+	config         *ClusteredBigCacheConfig
 	cache          *bigcache.BigCache
 	remoteNodes    *utils.SliceList
 	logger         utils.AppLogger
@@ -41,14 +41,14 @@ type Node struct {
 }
 
 //create a new local node
-func NewNode(config *NodeConfig, logger utils.AppLogger) *Node {
+func New(config *ClusteredBigCacheConfig, logger utils.AppLogger) *ClusteredBigCache {
 
 	cache, err := bigcache.NewBigCache(bigcache.DefaultConfig())
 	if err != nil {
 		panic(err)
 	}
 
-	return &Node{
+	return &ClusteredBigCache{
 		config:      config,
 		cache:       cache,
 		remoteNodes: utils.NewSliceList(remoteNodeEqualFunc, remoteNodeKeyFunc),
@@ -59,12 +59,24 @@ func NewNode(config *NodeConfig, logger utils.AppLogger) *Node {
 	}
 }
 
-//start this node running
-func (node *Node) Start() error {
+func (node *ClusteredBigCache) checkConfig()  {
+	if node.config.LocalPort < 1 {
+		panic("Local port can not be zero.")
+	}
 
+	if node.config.ReplicationFactor < 1 {
+		utils.Warn(node.logger, "Adjusting replication to 1 (no replication) because it was less than 1")
+		node.config.ReplicationFactor = 1
+	}
+}
+
+//start this Cluster running
+func (node *ClusteredBigCache) Start() error {
+
+	node.checkConfig()
 	if "" == node.config.Id {
 		node.config.Id = utils.GenerateNodeId(32)
-		utils.Info(node.logger, "Node ID is "+node.config.Id)
+		utils.Info(node.logger, "Cluster ID is "+node.config.Id)
 	}
 
 	if err := node.bringNodeUp(); err != nil {
@@ -81,8 +93,8 @@ func (node *Node) Start() error {
 	return nil
 }
 
-//shut down this node and all terminate all connections to remoteNodes
-func (node *Node) ShutDown() {
+//shut down this Cluster and all terminate all connections to remoteNodes
+func (node *ClusteredBigCache) ShutDown() {
 	for _, v := range node.remoteNodes.Values() {
 		v.(*remoteNode).shutDown()
 	}
@@ -94,7 +106,7 @@ func (node *Node) ShutDown() {
 }
 
 //join an existing cluster
-func (node *Node) joinCluster() error {
+func (node *ClusteredBigCache) joinCluster() error {
 	if "" == node.config.JoinIp {
 		utils.Critical(node.logger, "the server's IP to join can not be empty.")
 		return errors.New("the server's IP to join can not be empty since Join is true, there must be a JoinIP")
@@ -108,8 +120,8 @@ func (node *Node) joinCluster() error {
 	return nil
 }
 
-//bring up this node
-func (node *Node) bringNodeUp() error {
+//bring up this Cluster
+func (node *ClusteredBigCache) bringNodeUp() error {
 
 	var err error
 	utils.Info(node.logger, "bringing up node "+node.config.Id)
@@ -124,7 +136,7 @@ func (node *Node) bringNodeUp() error {
 }
 
 //event function used by remoteNode to announce the disconnection of itself
-func (node *Node) eventRemoteNodeDisconneced(remoteNode *remoteNode) {
+func (node *ClusteredBigCache) eventRemoteNodeDisconneced(remoteNode *remoteNode) {
 
 	if remoteNode.indexInParent < 0 {
 		return
@@ -137,7 +149,7 @@ func (node *Node) eventRemoteNodeDisconneced(remoteNode *remoteNode) {
 }
 
 //util function to return all know remoteNodes
-func (node *Node) getRemoteNodes() []interface{} {
+func (node *ClusteredBigCache) getRemoteNodes() []interface{} {
 	node.lock.Lock()
 	defer node.lock.Unlock()
 
@@ -145,7 +157,7 @@ func (node *Node) getRemoteNodes() []interface{} {
 }
 
 //event function used by remoteNode to verify itself
-func (node *Node) eventVerifyRemoteNode(remoteNode *remoteNode) bool {
+func (node *ClusteredBigCache) eventVerifyRemoteNode(remoteNode *remoteNode) bool {
 	node.lock.Lock()
 	defer node.lock.Unlock()
 
@@ -162,12 +174,12 @@ func (node *Node) eventVerifyRemoteNode(remoteNode *remoteNode) bool {
 }
 
 //event function used by remoteNode to notify this node of a connection that failed
-func (node *Node) eventUnableToConnect(config *remoteNodeConfig) {
+func (node *ClusteredBigCache) eventUnableToConnect(config *remoteNodeConfig) {
 	node.pendingConn.Delete(config.Id)
 }
 
 //listen for new connections to this node
-func (node *Node) listen() {
+func (node *ClusteredBigCache) listen() {
 
 	utils.Info(node.logger, fmt.Sprintf("node '%s' is up and running", node.config.Id))
 	errCount := 0
@@ -199,7 +211,7 @@ func (node *Node) listen() {
 	}
 }
 
-func (node *Node) DoTest() {
+func (node *ClusteredBigCache) DoTest() {
 	fmt.Printf("list of keys: %+v\n", node.remoteNodes.Keys())
 }
 
@@ -207,7 +219,7 @@ func (node *Node) DoTest() {
 //when a remote system connects to this node or when this node connects to a remote system, it will query that system
 //for the list of its connected nodes and pushes that list into this channel so that this node can connect forming
 //a mesh network in the process
-func (node *Node) connectToExistingNodes() {
+func (node *ClusteredBigCache) connectToExistingNodes() {
 
 	for value := range node.joinQueue {
 		if _, ok := node.pendingConn.Load(value.Id); ok {
@@ -230,7 +242,7 @@ func (node *Node) connectToExistingNodes() {
 	}
 }
 
-func (node *Node) PutData(key string, data []byte, duration time.Duration) error {
+func (node *ClusteredBigCache) PutData(key string, data []byte, duration time.Duration) error {
 	if node.config.ReplicationFactor == 1 {
 		return node.cache.Set(key, data, duration)
 	}
@@ -243,10 +255,10 @@ func (node *Node) PutData(key string, data []byte, duration time.Duration) error
 	return nil
 }
 
-func (node *Node) GetData(key string) ([]byte, error) {
+func (node *ClusteredBigCache) GetData(key string) ([]byte, error) {
 	return nil, nil
 }
 
-func (node *Node) DeleteData(key string) error {
+func (node *ClusteredBigCache) DeleteData(key string) error {
 	return nil
 }

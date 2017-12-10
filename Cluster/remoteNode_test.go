@@ -1,4 +1,4 @@
-package cluster
+package clusteredBigCache
 
 import (
 	"testing"
@@ -29,7 +29,7 @@ func TestRemoteNode(t *testing.T)  {
 	svr.Start()
 	defer svr.Close()
 
-	node := NewNode(&NodeConfig{LocalPort: 9999, ConnectRetries: 2}, nil)
+	node := New(&ClusteredBigCacheConfig{LocalPort: 9999, ConnectRetries: 2}, nil)
 	rn := newRemoteNode(&remoteNodeConfig{IpAddress: "localhost:9091", Sync: false}, node, nil)
 
 	err := rn.connect()
@@ -70,7 +70,7 @@ func TestNoPingResponseDisconnt(t *testing.T)  {
 	defer s.Close()
 
 
-	node := NewNode(&NodeConfig{LocalPort: 9999, ConnectRetries: 2}, nil)
+	node := New(&ClusteredBigCacheConfig{LocalPort: 9999, ConnectRetries: 2}, nil)
 	rn := newRemoteNode(&remoteNodeConfig{IpAddress: "localhost:9092", Sync: false,
 			PingFailureThreshHold: 1, PingInterval: 0}, node, nil)
 	err = rn.connect()

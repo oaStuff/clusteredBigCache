@@ -1,4 +1,4 @@
-package cluster
+package clusteredBigCache
 
 import (
 	"fmt"
@@ -49,7 +49,7 @@ type remoteNode struct {
 	config        *remoteNodeConfig
 	metrics 	  *nodeMetrics
 	connection    *comms.Connection
-	parentNode    *Node
+	parentNode    *ClusteredBigCache
 	msgQueue      chan *message.NodeWireMessage
 	indexInParent int
 	logger        utils.AppLogger
@@ -99,7 +99,7 @@ func checkConfig(logger utils.AppLogger, config *remoteNodeConfig) {
 }
 
 //create a new remoteNode object
-func newRemoteNode(config *remoteNodeConfig, parent *Node, logger utils.AppLogger) *remoteNode {
+func newRemoteNode(config *remoteNodeConfig, parent *ClusteredBigCache, logger utils.AppLogger) *remoteNode {
 	checkConfig(logger, config)
 	return &remoteNode{
 		config:        config,
