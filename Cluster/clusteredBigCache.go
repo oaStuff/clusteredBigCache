@@ -32,6 +32,8 @@ type ClusteredBigCacheConfig struct {
 	ReplicationFactor int `json:"replication_factor"`
 	WriteAck          bool   `json:"write_ack"`
 	GetTimeout		  int	`json:"get_timeout"`
+	DebugMode		  bool	`json:"debug_mode"`
+	DebugPort 		  int 	`json:"debug_port"`
 }
 
 //Cluster definition
@@ -89,6 +91,9 @@ func (node *ClusteredBigCache) checkConfig()  {
 //start this Cluster running
 func (node *ClusteredBigCache) Start() error {
 
+	if node.config.DebugMode {
+		go node.startUpHttpServer()
+	}
 
 	for x := 0; x < 10; x++ {
 		go node.getRequestSender()

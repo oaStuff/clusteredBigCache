@@ -356,6 +356,8 @@ func (r *remoteNode) handleMessage() {
 			r.handleGetRequest(msg)
 		case message.MsgGETRsp:
 			r.handleGetResponse(msg)
+		case message.MsgPUT:
+			r.handlePut(msg)
 		}
 	}
 
@@ -487,11 +489,23 @@ func (r *remoteNode) handleGetResponse(msg *message.NodeWireMessage) {
 		return
 	}
 
-	//some other remote note might have sent the data so we do not want to block forever on the channel hence the select
+	//some other remote node might have sent the data so we do not want to block forever on the channel hence the select
 	reqData := origReq.(*getRequestData)
 	select {
 	case <-reqData.done:
 	case reqData.replyChan <- &getReplyData{data: rspMsg.Data}:
 	default:
+	}
+}
+
+func (r *remoteNode) handlePut(msg *message.NodeWireMessage) {
+	putMsg := message.PutMessage{}
+	putMsg.DeSerialize(msg)
+	if putMsg.Expiry == 0 {
+		r.parentNode.cache.Set(putMsg.Key, putMsg.Data, 0)
+	} else {
+		t1 := time.Unix(int64(putMsg.Expiry), 0)
+		t2 := t1.Sub(time.Now())
+		r.parentNode.cache.Set(putMsg.Key, putMsg.Data, t2)
 	}
 }
