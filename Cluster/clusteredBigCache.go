@@ -303,6 +303,8 @@ func (node *ClusteredBigCache) GetData(key string) ([]byte, error) {
 	peers := node.getRemoteNodes()
 	replyC := make(chan *getReplyData)
 	reqData := &getRequestData{key: key, replyChan: replyC, done: make(chan struct{})}
+
+	//TODO: should we send to every remote node?
 	for _, peer := range peers {
 		node.getRequestChan <- &getRequestDataWrapper{r: peer.(*remoteNode), g: reqData}
 	}

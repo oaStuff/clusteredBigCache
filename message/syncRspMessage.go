@@ -9,6 +9,7 @@ type SyncRspMessage struct {
 }
 
 func (sc *SyncRspMessage) Serialize() *NodeWireMessage {
+	sc.Code = MsgSyncRsp
 	data, _ := json.Marshal(sc)
 	return &NodeWireMessage{Code: MsgSyncRsp, Data: data}
 }

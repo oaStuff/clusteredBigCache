@@ -10,6 +10,7 @@ type GetReqMessage struct {
 
 
 func (gm *GetReqMessage) Serialize() *NodeWireMessage {
+	gm.Code = MsgGETReq
 	data, _ := json.Marshal(gm)
 	return &NodeWireMessage{Code: MsgGETReq, Data: data}
 }
