@@ -6,6 +6,8 @@ const (
 	MsgPING
 	MsgPONG
 	MsgPUT
+	MsgGETReq
+	MsgGETRsp
 	MsgDEL
 	MsgSyncReq
 	MsgSyncRsp

@@ -13,7 +13,7 @@ func (pm *PutMessage) Serialize() *NodeWireMessage {
 	msg := &NodeWireMessage{Code: MsgPUT}
 	bKey := []byte(pm.Key)
 	keyLen := len(bKey)
-	msg.Data = make([]byte, keyLen+ len(pm.Data) + 2 + 8) //2 is needed for the size of the key while 8 is for expiry
+	msg.Data = make([]byte, keyLen + len(pm.Data) + 2 + 8) //2 is needed for the size of the key while 8 is for expiry
 	binary.LittleEndian.PutUint64(msg.Data, pm.Expiry)
 	binary.LittleEndian.PutUint16(msg.Data[8:], uint16(keyLen))
 	copy(msg.Data[(8 + 2):], bKey)

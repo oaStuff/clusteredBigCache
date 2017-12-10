@@ -59,6 +59,7 @@ type remoteNode struct {
 	pingTimer     *time.Ticker //used to send ping message to remote
 	pingTimeout   *time.Timer  //used to monitor ping response
 	pingFailure   int32        //count the number of pings without response
+	pendingGet	  *sync.Map
 }
 
 //used by SliceList to check for equality of items in the list
@@ -111,6 +112,7 @@ func newRemoteNode(config *remoteNodeConfig, parent *ClusteredBigCache, logger u
 		logger:        logger,
 		indexInParent: -1,
 		metrics: 		&nodeMetrics{},
+		pendingGet: 	&sync.Map{},
 	}
 }
 
@@ -311,6 +313,7 @@ func (r *remoteNode) shutDown() {
 	}
 	close(r.done)
 	close(r.msgQueue)
+	r.pendingGet = nil
 	utils.Info(r.logger, fmt.Sprintf("shutting down remote node '%s' ", r.config.Id))
 }
 
@@ -349,7 +352,10 @@ func (r *remoteNode) handleMessage() {
 			r.handleSyncResponse(msg)
 		case message.MsgSyncReq:
 			r.handleSyncRequest()
-
+		case message.MsgGETReq:
+			r.handleGetRequest(msg)
+		case message.MsgGETRsp:
+			r.handleGetResponse(msg)
 		}
 	}
 
@@ -448,5 +454,44 @@ func (r *remoteNode) handleSyncResponse(msg *message.NodeWireMessage) {
 	length := len(syncMsg.List)
 	for x := 0; x < length; x++ {
 		r.parentNode.joinQueue <- &syncMsg.List[x]
+	}
+}
+
+func (r *remoteNode) getData(reqData *getRequestData)  {
+	randStr := utils.GenerateNodeId(8)
+	r.pendingGet.Store(reqData.key + randStr, reqData)
+	r.sendMessage(&message.GetReqMessage{Key: reqData.key, PendingKey: reqData.key + randStr})
+}
+
+func (r *remoteNode) handleGetRequest(msg *message.NodeWireMessage) {
+	reqMsg := message.GetReqMessage{}
+	reqMsg.DeSerialize(msg)
+	data, _ := r.parentNode.cache.Get(reqMsg.Key)
+	r.sendMessage(&message.GetRspMessage{PendingKey: reqMsg.PendingKey, Data: data})
+
+
+}
+
+
+func (r *remoteNode) handleGetResponse(msg *message.NodeWireMessage) {
+	rspMsg := message.GetRspMessage{}
+	rspMsg.DeSerialize(msg)
+	origReq, ok := r.pendingGet.Load(rspMsg.PendingKey)
+	if !ok {
+		utils.Error(r.logger,"handling get response without finding the pending key")
+		return
+	}
+
+	r.pendingGet.Delete(rspMsg.PendingKey)
+	if len(rspMsg.Data) < 1 {
+		return
+	}
+
+	//some other remote note might have sent the data so we do not want to block forever on the channel hence the select
+	reqData := origReq.(*getRequestData)
+	select {
+	case <-reqData.done:
+	case reqData.replyChan <- &getReplyData{data: rspMsg.Data}:
+	default:
 	}
 }

@@ -48,3 +48,25 @@ func TestDeleteMessage(t *testing.T) {
 		t.Error("DeleteMessage serialization and deserialization not working properly")
 	}
 }
+
+func TestGetReqMessage(t *testing.T) {
+	msg := GetReqMessage{Key: "key_ab", PendingKey: "pending_key_1"}
+	newMsg := GetReqMessage{}
+	newMsg.DeSerialize(msg.Serialize())
+	if !reflect.DeepEqual(msg, newMsg) {
+		t.Error("GetReqMessage serialization and deserialization not working properly")
+	}
+}
+
+func TestGetRspMessage(t *testing.T) {
+	msg := GetRspMessage{Code: MsgGETRsp, PendingKey: "pending_key_5",Data: []byte("data_5")}
+	newMsg := GetRspMessage{}
+	newMsg.DeSerialize(msg.Serialize())
+	if !reflect.DeepEqual(msg, newMsg) {
+		t.Error("GetRspMessage serialization and deserialization not working properly")
+	}
+
+	if newMsg.Data == nil {
+		t.Log("data is nil")
+	}
+}

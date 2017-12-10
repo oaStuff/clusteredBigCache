@@ -16,6 +16,7 @@ import (
 
 var (
 	ErrNotEnoughReplica		=	errors.New("not enough replica")
+	ErrNotFound				= 	errors.New("data not found")
 )
 
 //Cluster configuration
@@ -30,6 +31,7 @@ type ClusteredBigCacheConfig struct {
 	TerminateOnListenerExit	bool 	`json:"terminate_on_listener_exit"`
 	ReplicationFactor int `json:"replication_factor"`
 	WriteAck          bool   `json:"write_ack"`
+	GetTimeout		  int	`json:"get_timeout"`
 }
 
 //Cluster definition
@@ -44,6 +46,7 @@ type ClusteredBigCache struct {
 	pendingConn    sync.Map
 	nodeIndex	   int
 	replicationLock sync.Mutex
+	getRequestChan	chan *getRequestDataWrapper
 }
 
 //create a new local node
@@ -64,6 +67,7 @@ func New(config *ClusteredBigCacheConfig, logger utils.AppLogger) *ClusteredBigC
 		pendingConn: sync.Map{},
 		nodeIndex: 	 0,
 		replicationLock: sync.Mutex{},
+		getRequestChan:	 make(chan *getRequestDataWrapper, 1024),
 	}
 }
 
@@ -76,10 +80,19 @@ func (node *ClusteredBigCache) checkConfig()  {
 		utils.Warn(node.logger, "Adjusting replication to 1 (no replication) because it was less than 1")
 		node.config.ReplicationFactor = 1
 	}
+
+	if node.config.GetTimeout < 1 {
+		node.config.GetTimeout = 3
+	}
 }
 
 //start this Cluster running
 func (node *ClusteredBigCache) Start() error {
+
+
+	for x := 0; x < 10; x++ {
+		go node.getRequestSender()
+	}
 
 	node.checkConfig()
 	if "" == node.config.Id {
@@ -108,6 +121,7 @@ func (node *ClusteredBigCache) ShutDown() {
 	}
 
 	close(node.joinQueue)
+	close(node.getRequestChan)
 	if node.serverEndpoint != nil {
 		node.serverEndpoint.Close()
 	}
@@ -280,9 +294,37 @@ func (node *ClusteredBigCache) PutData(key string, data []byte, duration time.Du
 }
 
 func (node *ClusteredBigCache) GetData(key string) ([]byte, error) {
-	return nil, nil
+	data, err := node.cache.Get(key)
+	if err == nil {
+		return data, nil
+	}
+
+	//we did not get the data locally so lets check the cluster
+	peers := node.getRemoteNodes()
+	replyC := make(chan *getReplyData)
+	reqData := &getRequestData{key: key, replyChan: replyC, done: make(chan struct{})}
+	for _, peer := range peers {
+		node.getRequestChan <- &getRequestDataWrapper{r: peer.(*remoteNode), g: reqData}
+	}
+
+	var replyData *getReplyData
+	select {
+	case replyData = <-replyC:
+		close(reqData.done)
+		close(reqData.replyChan)
+	case <-time.After(time.Second * time.Duration(node.config.GetTimeout)):
+		return nil, ErrNotFound
+	}
+
+	return replyData.data, nil
 }
 
 func (node *ClusteredBigCache) DeleteData(key string) error {
 	return nil
+}
+
+func (node *ClusteredBigCache) getRequestSender() {
+	for value := range node.getRequestChan {
+		value.r.getData(value.g)
+	}
 }

@@ -1,5 +1,19 @@
 package clusteredBigCache
 
+type getReplyData struct {
+	data	[]byte
+}
+
+type getRequestData struct {
+	key			string
+	replyChan	chan *getReplyData
+	done 		chan struct{}
+}
+
+type getRequestDataWrapper struct {
+	g *getRequestData
+	r *remoteNode
+}
 
 func DefaultClusterConfig() *ClusteredBigCacheConfig {
 
