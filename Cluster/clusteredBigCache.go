@@ -14,6 +14,10 @@ import (
 	"time"
 )
 
+var (
+	ErrNotEnoughReplica		=	errors.New("not enough replica")
+)
+
 //Cluster configuration
 type ClusteredBigCacheConfig struct {
 	Id             string   `json:"id"`
@@ -38,6 +42,8 @@ type ClusteredBigCache struct {
 	serverEndpoint net.Listener
 	joinQueue      chan *message.ProposedPeer
 	pendingConn    sync.Map
+	nodeIndex	   int
+	replicationLock sync.Mutex
 }
 
 //create a new local node
@@ -56,6 +62,8 @@ func New(config *ClusteredBigCacheConfig, logger utils.AppLogger) *ClusteredBigC
 		lock:        sync.Mutex{},
 		joinQueue:   make(chan *message.ProposedPeer, 512),
 		pendingConn: sync.Map{},
+		nodeIndex: 	 0,
+		replicationLock: sync.Mutex{},
 	}
 }
 
@@ -116,7 +124,6 @@ func (node *ClusteredBigCache) joinCluster() error {
 												ConnectRetries: node.config.ConnectRetries,
 												Sync: true}, node, node.logger)
 	remoteNode.join()
-
 	return nil
 }
 
@@ -124,8 +131,8 @@ func (node *ClusteredBigCache) joinCluster() error {
 func (node *ClusteredBigCache) bringNodeUp() error {
 
 	var err error
-	utils.Info(node.logger, "bringing up node "+node.config.Id)
-	node.serverEndpoint, err = net.Listen("tcp", ":"+strconv.Itoa(node.config.LocalPort))
+	utils.Info(node.logger, "bringing up node " + node.config.Id)
+	node.serverEndpoint, err = net.Listen("tcp", ":" + strconv.Itoa(node.config.LocalPort))
 	if err != nil {
 		utils.Error(node.logger, fmt.Sprintf("unable to Listen on port %d. [%s]", node.config.LocalPort, err.Error()))
 		return err
@@ -244,13 +251,30 @@ func (node *ClusteredBigCache) connectToExistingNodes() {
 
 func (node *ClusteredBigCache) PutData(key string, data []byte, duration time.Duration) error {
 	if node.config.ReplicationFactor == 1 {
-		return node.cache.Set(key, data, duration)
+		_, err := node.cache.Set(key, data, duration)
+		return err
 	}
 
+	node.lock.Lock()
 	if node.remoteNodes.Size() < node.config.ReplicationFactor {
+		node.lock.Unlock()
+		return ErrNotEnoughReplica
+	}
+	peers := node.remoteNodes.Values()
+	node.lock.Unlock()
 
+	expiryTime, err := node.cache.Set(key, data, duration)
+	if err != nil {
+		return err
 	}
 
+	node.replicationLock.Lock()
+	defer node.replicationLock.Unlock()
+
+	for x := 0; x < node.config.ReplicationFactor - 1; x++ {	//just replicate serially from left to right
+		peers[node.nodeIndex].(*remoteNode).sendMessage(&message.PutMessage{Key: key, Data: data, Expiry: expiryTime})
+		node.nodeIndex = (node.nodeIndex + 1) % len(peers)
+	}
 
 	return nil
 }

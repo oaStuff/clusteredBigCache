@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-const NO_EXPIRY int64 = -1
+const NO_EXPIRY uint64 = 0
 
 type cacheShard struct {
 	sharedNum   uint64
@@ -58,10 +58,12 @@ func (s *cacheShard) get(key string, hashedKey uint64) ([]byte, error) {
 	return readEntry(wrappedEntry), nil
 }
 
-func (s *cacheShard) set(key string, hashedKey uint64, entry []byte, duration time.Duration) error {
+func (s *cacheShard) set(key string, hashedKey uint64, entry []byte, duration time.Duration) (uint64, error) {
 	expiryTimestamp := uint64(s.clock.epoch())
 	if duration != time.Duration(NO_EXPIRY) {
 		expiryTimestamp += uint64(duration.Seconds())
+	} else {
+		expiryTimestamp = NO_EXPIRY
 	}
 
 	s.lock.Lock()
@@ -83,10 +85,10 @@ func (s *cacheShard) set(key string, hashedKey uint64, entry []byte, duration ti
 		if duration != time.Duration(NO_EXPIRY) {
 			s.ttlTable.put(expiryTimestamp, key)
 		}
-		return nil
+		return expiryTimestamp, nil
 	}
 
-	return err
+	return 0, err
 }
 
 func (s *cacheShard) evictDel(key string, hashedKey uint64) error {
