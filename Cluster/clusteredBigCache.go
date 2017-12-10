@@ -302,7 +302,8 @@ func (node *ClusteredBigCache) Get(key string) ([]byte, error) {
 	//we did not get the data locally so lets check the cluster
 	peers := node.getRemoteNodes()
 	replyC := make(chan *getReplyData)
-	reqData := &getRequestData{key: key, replyChan: replyC, done: make(chan struct{})}
+	reqData := &getRequestData{key: key, randStr: utils.GenerateNodeId(8),
+									replyChan: replyC, done: make(chan struct{})}
 
 	//TODO: should we send to every remote node?
 	for _, peer := range peers {

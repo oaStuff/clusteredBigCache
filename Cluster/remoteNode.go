@@ -18,7 +18,6 @@ const (
 	nodeStateConnecting = iota
 	nodeStateConnected
 	nodeStateDisconnected
-	nodeStateShuttingDown
 	nodeStateHandshake
 )
 
@@ -207,6 +206,7 @@ func (r *remoteNode) join() {
 	utils.Info(r.logger, "joining remote node via "+r.config.IpAddress)
 
 	go func() { //goroutine will try to connect to the cluster until it succeeds or max tries reached
+		r.setState(nodeStateConnecting)
 		var err error
 		tries := 0
 		for {
@@ -458,7 +458,7 @@ func (r *remoteNode) handleSyncResponse(msg *message.NodeWireMessage) {
 }
 
 func (r *remoteNode) getData(reqData *getRequestData)  {
-	randStr := utils.GenerateNodeId(8)
+	randStr := reqData.randStr
 	r.pendingGet.Store(reqData.key + randStr, reqData)
 	r.sendMessage(&message.GetReqMessage{Key: reqData.key, PendingKey: reqData.key + randStr})
 }

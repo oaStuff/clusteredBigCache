@@ -6,6 +6,7 @@ type getReplyData struct {
 
 type getRequestData struct {
 	key			string
+	randStr		string
 	replyChan	chan *getReplyData
 	done 		chan struct{}
 }
