@@ -42,7 +42,7 @@ type ClusteredBigCache struct {
 	cache          *bigcache.BigCache
 	remoteNodes    *utils.SliceList
 	logger         utils.AppLogger
-	lock           sync.Mutex
+	//lock           sync.Mutex
 	serverEndpoint net.Listener
 	joinQueue      chan *message.ProposedPeer
 	pendingConn    sync.Map
@@ -62,9 +62,9 @@ func New(config *ClusteredBigCacheConfig, logger utils.AppLogger) *ClusteredBigC
 	return &ClusteredBigCache{
 		config:      config,
 		cache:       cache,
-		remoteNodes: utils.NewSliceList(remoteNodeEqualFunc, remoteNodeKeyFunc),
+		remoteNodes: utils.NewSliceList(),
 		logger:      logger,
-		lock:        sync.Mutex{},
+		//lock:        sync.Mutex{},
 		joinQueue:   make(chan *message.ProposedPeer, 512),
 		pendingConn: sync.Map{},
 		nodeIndex: 	 0,
@@ -170,38 +170,26 @@ func (node *ClusteredBigCache) bringNodeUp() error {
 }
 
 //event function used by remoteNode to announce the disconnection of itself
-func (node *ClusteredBigCache) eventRemoteNodeDisconneced(remoteNode *remoteNode) {
+func (node *ClusteredBigCache) eventRemoteNodeDisconneced(r *remoteNode) {
 
-	if remoteNode.indexInParent < 0 {
-		return
-	}
-
-	node.lock.Lock()
-	defer node.lock.Unlock()
-
-	node.remoteNodes.Remove(remoteNode.indexInParent)
+	node.remoteNodes.Remove(r.config.Id)
 }
 
 //util function to return all know remoteNodes
 func (node *ClusteredBigCache) getRemoteNodes() []interface{} {
-	node.lock.Lock()
-	defer node.lock.Unlock()
 
 	return node.remoteNodes.Values()
 }
 
 //event function used by remoteNode to verify itself
 func (node *ClusteredBigCache) eventVerifyRemoteNode(remoteNode *remoteNode) bool {
-	node.lock.Lock()
-	defer node.lock.Unlock()
 
-	if node.remoteNodes.Contains(remoteNode) {
+	if node.remoteNodes.Contains(remoteNode.config.Id) {
 		return false
 	}
 
-	index := node.remoteNodes.Add(remoteNode)
-	remoteNode.indexInParent = index
-	utils.Info(node.logger, fmt.Sprintf("added remote node '%s' into group at index %d", remoteNode.config.Id, index))
+	node.remoteNodes.Add(remoteNode.config.Id, remoteNode)
+	utils.Info(node.logger, fmt.Sprintf("added remote node '%s' into group", remoteNode.config.Id))
 	node.pendingConn.Delete(remoteNode.config.Id)
 
 	return true
@@ -260,10 +248,10 @@ func (node *ClusteredBigCache) connectToExistingNodes() {
 			utils.Warn(node.logger, fmt.Sprintf("remote node '%s' already in connnection pending queue", value.Id))
 			continue
 		}
-		node.lock.Lock()
+
+		//if we are already connected to the remote node just exit
 		keys := node.remoteNodes.Keys()
-		node.lock.Unlock()
-		if _, ok := keys[value.Id]; ok {
+		if _, ok := keys.Load(value.Id); ok {
 			continue
 		}
 
@@ -282,14 +270,10 @@ func (node *ClusteredBigCache) Put(key string, data []byte, duration time.Durati
 		return err
 	}
 
-	node.lock.Lock()
-	if node.remoteNodes.Size() < (node.config.ReplicationFactor -1) {
-		node.lock.Unlock()
+	if node.remoteNodes.Size() < int32(node.config.ReplicationFactor -1) {
 		return ErrNotEnoughReplica
 	}
 	peers := node.remoteNodes.Values()
-	node.lock.Unlock()
-
 	expiryTime, err := node.cache.Set(key, data, duration)
 	if err != nil {
 		return err
@@ -299,6 +283,7 @@ func (node *ClusteredBigCache) Put(key string, data []byte, duration time.Durati
 	defer node.replicationLock.Unlock()
 
 	for x := 0; x < node.config.ReplicationFactor - 1; x++ {	//just replicate serially from left to right
+		fmt.Printf("replicating key '%s' to node '%s'", key, peers[node.nodeIndex].(*remoteNode).config.Id)
 		peers[node.nodeIndex].(*remoteNode).sendMessage(&message.PutMessage{Key: key, Data: data, Expiry: expiryTime})
 		node.nodeIndex = (node.nodeIndex + 1) % len(peers)
 	}

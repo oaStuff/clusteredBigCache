@@ -50,7 +50,7 @@ type remoteNode struct {
 	connection    *comms.Connection
 	parentNode    *ClusteredBigCache
 	msgQueue      chan *message.NodeWireMessage
-	indexInParent int
+	//indexInParent int
 	logger        utils.AppLogger
 	state         remoteNodeState
 	stateLock     sync.Mutex
@@ -109,7 +109,7 @@ func newRemoteNode(config *remoteNodeConfig, parent *ClusteredBigCache, logger u
 		stateLock:     sync.Mutex{},
 		parentNode:    parent,
 		logger:        logger,
-		indexInParent: -1,
+		//indexInParent: -1,
 		metrics: 		&nodeMetrics{},
 		pendingGet: 	&sync.Map{},
 	}
@@ -314,7 +314,7 @@ func (r *remoteNode) shutDown() {
 	close(r.done)
 	close(r.msgQueue)
 	r.pendingGet = nil
-	utils.Info(r.logger, fmt.Sprintf("shutting down remote node '%s' ", r.config.Id))
+	utils.Info(r.logger, fmt.Sprintf("remote node '%s' completely shutdown", r.config.Id))
 }
 
 //just queue the message in a channel
@@ -462,6 +462,12 @@ func (r *remoteNode) handleSyncResponse(msg *message.NodeWireMessage) {
 
 func (r *remoteNode) getData(reqData *getRequestData)  {
 	randStr := reqData.randStr
+	if r == nil {
+		fmt.Printf("r is nil for '%s\n'", r.config.Id)
+	}
+	if r.pendingGet == nil {
+		fmt.Printf("pendingGet is nil for '%s' \n", r.config.Id)
+	}
 	r.pendingGet.Store(reqData.key + randStr, reqData)
 	r.sendMessage(&message.GetReqMessage{Key: reqData.key, PendingKey: reqData.key + randStr})
 }
