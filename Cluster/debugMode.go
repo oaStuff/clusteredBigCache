@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"net/http"
 	"time"
-	"fmt"
 )
 
 func (node *ClusteredBigCache) startUpHttpServer()  {
