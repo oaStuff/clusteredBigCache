@@ -453,6 +453,7 @@ func (r *remoteNode) handleSyncRequest() {
 func (r *remoteNode) handleSyncResponse(msg *message.NodeWireMessage) {
 	syncMsg := message.SyncRspMessage{}
 	syncMsg.DeSerialize(msg)
+	r.parentNode.setReplicationFactor(syncMsg.ReplicationFactor)
 	length := len(syncMsg.List)
 	for x := 0; x < length; x++ {
 		r.parentNode.joinQueue <- &syncMsg.List[x]

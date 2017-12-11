@@ -88,6 +88,14 @@ func (node *ClusteredBigCache) checkConfig()  {
 	}
 }
 
+func (node *ClusteredBigCache) setReplicationFactor(rf int)  {
+	if rf < 1 {
+		rf = 1
+	}
+
+	node.config.ReplicationFactor = rf
+}
+
 //start this Cluster running
 func (node *ClusteredBigCache) Start() error {
 
@@ -318,12 +326,11 @@ func (node *ClusteredBigCache) Get(key string) ([]byte, error) {
 	var replyData *getReplyData
 	select {
 	case replyData = <-replyC:
-		close(reqData.done)
-		close(reqData.replyChan)
 	case <-time.After(time.Second * time.Duration(node.config.GetTimeout)):
 		return nil, ErrNotFound
 	}
-
+	//close(reqData.replyChan)
+	close(reqData.done)
 	return replyData.data, nil
 }
 
