@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"net/http"
 	"time"
+	"fmt"
 )
 
 func (node *ClusteredBigCache) startUpHttpServer()  {
@@ -37,7 +38,10 @@ func (node *ClusteredBigCache) startUpHttpServer()  {
 
 	g.GET("/get/:key", func(c *gin.Context) {
 		key := c.Param("key")
-		data, ok := node.Get(key)
+		t1 := time.Now()
+		data, ok := node.Get(key, time.Second * 1)
+		t2 := time.Now().Sub(t1)
+		fmt.Println("it took me ", t2)
 		c.JSON(http.StatusOK, map[string]string{"key":key, "exist": strconv.FormatBool(ok == nil),	"data": string(data)})
 	})
 

@@ -31,7 +31,6 @@ type ClusteredBigCacheConfig struct {
 	TerminateOnListenerExit	bool 	`json:"terminate_on_listener_exit"`
 	ReplicationFactor int `json:"replication_factor"`
 	WriteAck          bool   `json:"write_ack"`
-	GetTimeout		  int	`json:"get_timeout"`
 	DebugMode		  bool	`json:"debug_mode"`
 	DebugPort 		  int 	`json:"debug_port"`
 }
@@ -81,10 +80,6 @@ func (node *ClusteredBigCache) checkConfig()  {
 	if node.config.ReplicationFactor < 1 {
 		utils.Warn(node.logger, "Adjusting replication to 1 (no replication) because it was less than 1")
 		node.config.ReplicationFactor = 1
-	}
-
-	if node.config.GetTimeout < 1 {
-		node.config.GetTimeout = 3
 	}
 }
 
@@ -234,7 +229,7 @@ func (node *ClusteredBigCache) listen() {
 }
 
 func (node *ClusteredBigCache) DoTest() {
-	fmt.Printf("list of keys: %+v\n", node.remoteNodes.Keys())
+	fmt.Printf("list size is : %+v\n", node.remoteNodes.Size())
 }
 
 //this is a goroutine that takes details from a channel and connect to them if they are not known
@@ -283,7 +278,7 @@ func (node *ClusteredBigCache) Put(key string, data []byte, duration time.Durati
 	defer node.replicationLock.Unlock()
 
 	for x := 0; x < node.config.ReplicationFactor - 1; x++ {	//just replicate serially from left to right
-		fmt.Printf("replicating key '%s' to node '%s'", key, peers[node.nodeIndex].(*remoteNode).config.Id)
+		//fmt.Printf("replicating key '%s' to node '%s'\n", key, peers[node.nodeIndex].(*remoteNode).config.Id)
 		peers[node.nodeIndex].(*remoteNode).sendMessage(&message.PutMessage{Key: key, Data: data, Expiry: expiryTime})
 		node.nodeIndex = (node.nodeIndex + 1) % len(peers)
 	}
@@ -291,7 +286,7 @@ func (node *ClusteredBigCache) Put(key string, data []byte, duration time.Durati
 	return nil
 }
 
-func (node *ClusteredBigCache) Get(key string) ([]byte, error) {
+func (node *ClusteredBigCache) Get(key string, timeout time.Duration) ([]byte, error) {
 	data, err := node.cache.Get(key)
 	if err == nil {
 		return data, nil
@@ -311,7 +306,7 @@ func (node *ClusteredBigCache) Get(key string) ([]byte, error) {
 	var replyData *getReplyData
 	select {
 	case replyData = <-replyC:
-	case <-time.After(time.Second * time.Duration(node.config.GetTimeout)):
+	case <-time.After(timeout):
 		return nil, ErrNotFound
 	}
 	//close(reqData.replyChan)

@@ -6,7 +6,7 @@ import (
 	"github.com/oaStuff/clusteredBigCache/utils"
 )
 
-func TestNodeConncting(t *testing.T)  {
+func TestNodeConnecting(t *testing.T)  {
 
 	s := utils.NewTestServer(9093, true)
 	err := s.Start()
