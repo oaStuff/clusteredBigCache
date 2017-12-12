@@ -1,5 +1,7 @@
 package clusteredBigCache
 
+import "github.com/oaStuff/clusteredBigCache/message"
+
 type getReplyData struct {
 	data	[]byte
 }
@@ -14,6 +16,11 @@ type getRequestData struct {
 type getRequestDataWrapper struct {
 	g *getRequestData
 	r *remoteNode
+}
+
+type replicationMsg struct {
+	r *remoteNode
+	m message.NodeMessage
 }
 
 func DefaultClusterConfig() *ClusteredBigCacheConfig {

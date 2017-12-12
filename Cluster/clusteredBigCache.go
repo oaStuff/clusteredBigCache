@@ -52,8 +52,8 @@ type ClusteredBigCache struct {
 	joinQueue      chan *message.ProposedPeer
 	pendingConn    sync.Map
 	nodeIndex	   int
-	replicationLock sync.Mutex
 	getRequestChan	chan *getRequestDataWrapper
+	replicationChan	chan *replicationMsg
 }
 
 //create a new local node
@@ -73,8 +73,8 @@ func New(config *ClusteredBigCacheConfig, logger utils.AppLogger) *ClusteredBigC
 		joinQueue:   make(chan *message.ProposedPeer, 512),
 		pendingConn: sync.Map{},
 		nodeIndex: 	 0,
-		replicationLock: sync.Mutex{},
 		getRequestChan:	 make(chan *getRequestDataWrapper, 1024),
+		replicationChan: make(chan *replicationMsg, 4096),
 	}
 }
 
@@ -109,8 +109,9 @@ func (node *ClusteredBigCache) Start() error {
 		go node.startUpHttpServer()
 	}
 
-	for x := 0; x < 10; x++ {
+	for x := 0; x < 5; x++ {
 		go node.requestSenderForGET()
+		go node.replication()
 	}
 
 	node.checkConfig()
@@ -141,6 +142,7 @@ func (node *ClusteredBigCache) ShutDown() {
 
 	close(node.joinQueue)
 	close(node.getRequestChan)
+	close(node.replicationChan)
 	if node.serverEndpoint != nil {
 		node.serverEndpoint.Close()
 	}
@@ -296,15 +298,11 @@ func (node *ClusteredBigCache) Put(key string, data []byte, duration time.Durati
 		return err
 	}
 
-	go func() {
-		peers := node.remoteNodes.Values()
-		node.replicationLock.Lock()
-		defer node.replicationLock.Unlock()
-
-		for x := 0; x < len(peers); x++ {	//just replicate serially from left to right
-			peers[x].(*remoteNode).sendMessage(&message.PutMessage{Key: key, Data: data, Expiry: expiryTime})
-		}
-	}()
+	peers := node.remoteNodes.Values()
+	for x := 0; x < len(peers); x++ {	//just replicate serially from left to right
+		node.replicationChan <- &replicationMsg{r:peers[x].(*remoteNode),
+												m: &message.PutMessage{Key: key, Data: data, Expiry: expiryTime}}
+	}
 
 	return nil
 }
@@ -332,7 +330,7 @@ func (node *ClusteredBigCache) Get(key string, timeout time.Duration) ([]byte, e
 	case <-time.After(timeout):
 		return nil, ErrNotFound
 	}
-	//close(reqData.replyChan)
+
 	close(reqData.done)
 	return replyData.data, nil
 }
@@ -340,16 +338,13 @@ func (node *ClusteredBigCache) Get(key string, timeout time.Duration) ([]byte, e
 func (node *ClusteredBigCache) Delete(key string) error {
 
 	node.cache.Delete(key)
-	go func() {
-		peers := node.remoteNodes.Values()
-		node.replicationLock.Lock()
-		defer node.replicationLock.Unlock()
 
-		//just send the delete message to everyone
-		for x := 0; x < len(peers); x++ {
-			peers[x].(*remoteNode).sendMessage(&message.DeleteMessage{Key: key})
-		}
-	}()
+	peers := node.remoteNodes.Values()
+	//just send the delete message to everyone
+	for x := 0; x < len(peers); x++ {
+		node.replicationChan <- &replicationMsg{r:peers[x].(*remoteNode), m: &message.DeleteMessage{Key: key}}
+	}
+
 
 
 	return nil
@@ -358,6 +353,12 @@ func (node *ClusteredBigCache) Delete(key string) error {
 func (node *ClusteredBigCache) requestSenderForGET() {
 	for value := range node.getRequestChan {
 		value.r.getData(value.g)
+	}
+}
+
+func (node *ClusteredBigCache) replication() {
+	for msg := range node.replicationChan {
+		msg.r.sendMessage(msg.m)
 	}
 }
 
