@@ -99,7 +99,7 @@ func (node *ClusteredBigCache) Start() error {
 	}
 
 	for x := 0; x < 10; x++ {
-		go node.getRequestSender()
+		go node.requestSenderForGET()
 	}
 
 	node.checkConfig()
@@ -315,10 +315,20 @@ func (node *ClusteredBigCache) Get(key string, timeout time.Duration) ([]byte, e
 }
 
 func (node *ClusteredBigCache) Delete(key string) error {
+
+	node.cache.Delete(key)
+	peers := node.remoteNodes.Values()
+
+	//just send the delete message to everyone
+	//TODO: is this the best approach?
+	for x := 0; x < len(peers); x++ {
+		peers[x].(*remoteNode).sendMessage(&message.DeleteMessage{Key: key})
+	}
+
 	return nil
 }
 
-func (node *ClusteredBigCache) getRequestSender() {
+func (node *ClusteredBigCache) requestSenderForGET() {
 	for value := range node.getRequestChan {
 		value.r.getData(value.g)
 	}

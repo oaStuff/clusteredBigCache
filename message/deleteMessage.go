@@ -8,6 +8,7 @@ type DeleteMessage struct {
 }
 
 func (dm *DeleteMessage) Serialize() *NodeWireMessage {
+	dm.Code = MsgDEL
 	data, _ := json.Marshal(dm)
 	return &NodeWireMessage{Code: MsgDEL, Data: data}
 }

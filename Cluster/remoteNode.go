@@ -358,6 +358,8 @@ func (r *remoteNode) handleMessage() {
 			r.handleGetResponse(msg)
 		case message.MsgPUT:
 			r.handlePut(msg)
+		case message.MsgDEL:
+			r.handleDelete(msg)
 		}
 	}
 
@@ -515,4 +517,10 @@ func (r *remoteNode) handlePut(msg *message.NodeWireMessage) {
 		t2 := t1.Sub(time.Now())
 		r.parentNode.cache.Set(putMsg.Key, putMsg.Data, t2)
 	}
+}
+
+func (r *remoteNode) handleDelete(msg *message.NodeWireMessage) {
+	delMsg := message.DeleteMessage{}
+	delMsg.DeSerialize(msg)
+	r.parentNode.cache.Delete(delMsg.Key)
 }
