@@ -14,6 +14,11 @@ import (
 	"time"
 )
 
+const (
+	REPLICATION_MODE_FULL_REPLICATE byte = iota
+	REPLICATION_MODE_SHARD
+)
+
 var (
 	ErrNotEnoughReplica		=	errors.New("not enough replica")
 	ErrNotFound				= 	errors.New("data not found")
@@ -29,6 +34,7 @@ type ClusteredBigCacheConfig struct {
 	BindAll        bool     `json:"bind_all"`
 	ConnectRetries int      `json:"connect_retries"`
 	TerminateOnListenerExit	bool 	`json:"terminate_on_listener_exit"`
+	ReplicationMode	  byte	`json:"replication_mode"`
 	ReplicationFactor int `json:"replication_factor"`
 	WriteAck          bool   `json:"write_ack"`
 	DebugMode		  bool	`json:"debug_mode"`
@@ -77,7 +83,12 @@ func (node *ClusteredBigCache) checkConfig()  {
 		panic("Local port can not be zero.")
 	}
 
-	if node.config.ReplicationFactor < 1 {
+	if node.config.ReplicationMode == REPLICATION_MODE_SHARD {
+		utils.Warn(node.logger, "replication mode SHARD not yet implemented, falling back to FULL REPLICATION")
+		node.config.ReplicationMode = REPLICATION_MODE_FULL_REPLICATE
+	}
+
+	if node.config.ReplicationMode == REPLICATION_MODE_SHARD && node.config.ReplicationFactor < 1 {
 		utils.Warn(node.logger, "Adjusting replication to 1 (no replication) because it was less than 1")
 		node.config.ReplicationFactor = 1
 	}
@@ -259,7 +270,9 @@ func (node *ClusteredBigCache) connectToExistingNodes() {
 	}
 }
 
-func (node *ClusteredBigCache) Put(key string, data []byte, duration time.Duration) error {
+func (node *ClusteredBigCache) doShardReplication(key string, data []byte, duration time.Duration) error {
+	panic("shard replication not yet implemented")
+
 	if node.config.ReplicationFactor == 1 {
 		_, err := node.cache.Set(key, data, duration)
 		return err
@@ -268,20 +281,30 @@ func (node *ClusteredBigCache) Put(key string, data []byte, duration time.Durati
 	if node.remoteNodes.Size() < int32(node.config.ReplicationFactor -1) {
 		return ErrNotEnoughReplica
 	}
-	peers := node.remoteNodes.Values()
+	return nil
+}
+
+func (node *ClusteredBigCache) Put(key string, data []byte, duration time.Duration) error {
+
+	if node.config.ReplicationMode == REPLICATION_MODE_SHARD {
+		return node.doShardReplication(key, data, duration)
+	}
+
+	//we are going to do full replication across the cluster
 	expiryTime, err := node.cache.Set(key, data, duration)
 	if err != nil {
 		return err
 	}
 
-	node.replicationLock.Lock()
-	defer node.replicationLock.Unlock()
+	go func() {
+		peers := node.remoteNodes.Values()
+		node.replicationLock.Lock()
+		defer node.replicationLock.Unlock()
 
-	for x := 0; x < node.config.ReplicationFactor - 1; x++ {	//just replicate serially from left to right
-		//fmt.Printf("replicating key '%s' to node '%s'\n", key, peers[node.nodeIndex].(*remoteNode).config.Id)
-		peers[node.nodeIndex].(*remoteNode).sendMessage(&message.PutMessage{Key: key, Data: data, Expiry: expiryTime})
-		node.nodeIndex = (node.nodeIndex + 1) % len(peers)
-	}
+		for x := 0; x < len(peers); x++ {	//just replicate serially from left to right
+			peers[x].(*remoteNode).sendMessage(&message.PutMessage{Key: key, Data: data, Expiry: expiryTime})
+		}
+	}()
 
 	return nil
 }
@@ -317,13 +340,17 @@ func (node *ClusteredBigCache) Get(key string, timeout time.Duration) ([]byte, e
 func (node *ClusteredBigCache) Delete(key string) error {
 
 	node.cache.Delete(key)
-	peers := node.remoteNodes.Values()
+	go func() {
+		peers := node.remoteNodes.Values()
+		node.replicationLock.Lock()
+		defer node.replicationLock.Unlock()
 
-	//just send the delete message to everyone
-	//TODO: is this the best approach?
-	for x := 0; x < len(peers); x++ {
-		peers[x].(*remoteNode).sendMessage(&message.DeleteMessage{Key: key})
-	}
+		//just send the delete message to everyone
+		for x := 0; x < len(peers); x++ {
+			peers[x].(*remoteNode).sendMessage(&message.DeleteMessage{Key: key})
+		}
+	}()
+
 
 	return nil
 }
@@ -333,3 +360,4 @@ func (node *ClusteredBigCache) requestSenderForGET() {
 		value.r.getData(value.g)
 	}
 }
+

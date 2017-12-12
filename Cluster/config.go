@@ -19,12 +19,13 @@ type getRequestDataWrapper struct {
 func DefaultClusterConfig() *ClusteredBigCacheConfig {
 
 	return &ClusteredBigCacheConfig{
-			Join:           false,
-			BindAll:        true,
-			LocalPort:      9911,
-			ConnectRetries: 5,
+			Join:                    false,
+			BindAll:                 true,
+			LocalPort:               9911,
+			ConnectRetries:          5,
 			TerminateOnListenerExit: false,
-			ReplicationFactor: 1,
-			WriteAck:          true,
+			ReplicationFactor:       1,
+			WriteAck:                true,
+			ReplicationMode:         REPLICATION_MODE_FULL_REPLICATE,
 		}
 }

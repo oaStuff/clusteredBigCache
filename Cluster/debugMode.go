@@ -14,31 +14,45 @@ func (node *ClusteredBigCache) startUpHttpServer()  {
 	}
 
 	g := gin.Default()
-	g.GET("/local_get/:key", func(c *gin.Context) {
+	g.GET("/local/:key", func(c *gin.Context) {
 		key := c.Param("key")
 		data, ok := node.cache.Get(key)
 		c.JSON(http.StatusOK, map[string]string{"key":key, "exist": strconv.FormatBool(ok == nil),	"data": string(data)})
 	})
 
-	g.POST("/local_put/:key/:data", func(c *gin.Context) {
+	g.GET("/global/:key", func(c *gin.Context) {
 		key := c.Param("key")
-		data := c.Param("data")
-		node.cache.Set(key, []byte(data), time.Hour * 3)
-		c.String(http.StatusOK, "successfully set ", key)
+		data, ok := node.Get(key, time.Second * 1)
+		c.JSON(http.StatusOK, map[string]string{"key":key, "exist": strconv.FormatBool(ok == nil),	"data": string(data)})
 	})
 
-	g.POST("/put/:key/:data/:time", func(c *gin.Context) {
+	g.POST("/local/:key/:data/:time", func(c *gin.Context) {
+		key := c.Param("key")
+		data := c.Param("data")
+		n, _ := strconv.Atoi(c.Param("time"))
+		node.cache.Set(key, []byte(data), time.Minute * time.Duration(n))
+		c.String(http.StatusOK, "successfully set %s", key)
+	})
+
+	g.POST("/global/:key/:data/:time", func(c *gin.Context) {
 		key := c.Param("key")
 		data := c.Param("data")
 		sec := c.Param("time")
 		n, _ := strconv.Atoi(sec)
 		node.Put(key, []byte(data), time.Minute * time.Duration(n))
+		c.String(http.StatusOK, "successfully set %s", key)
 	})
 
-	g.GET("/get/:key", func(c *gin.Context) {
+	g.DELETE("/local/:key", func(c *gin.Context) {
 		key := c.Param("key")
-		data, ok := node.Get(key, time.Second * 1)
-		c.JSON(http.StatusOK, map[string]string{"key":key, "exist": strconv.FormatBool(ok == nil),	"data": string(data)})
+		node.cache.Delete(key)
+		c.String(http.StatusOK, "successfully deleted %s", key)
+	})
+
+	g.DELETE("/global/:key", func(c *gin.Context) {
+		key := c.Param("key")
+		node.Delete(key)
+		c.String(http.StatusOK, "successfully deleted %s", key)
 	})
 
 	g.Run(net.JoinHostPort("",strconv.Itoa(node.config.DebugPort)))
