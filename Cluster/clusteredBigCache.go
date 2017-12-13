@@ -83,6 +83,10 @@ func (node *ClusteredBigCache) checkConfig()  {
 		panic("Local port can not be zero.")
 	}
 
+	if node.config.ConnectRetries < 1 {
+		node.config.ConnectRetries = 5
+	}
+
 	if node.config.ReplicationMode == REPLICATION_MODE_SHARD {
 		utils.Warn(node.logger, "replication mode SHARD not yet implemented, falling back to FULL REPLICATION")
 		node.config.ReplicationMode = REPLICATION_MODE_FULL_REPLICATE

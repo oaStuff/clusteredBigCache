@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"net/http"
 	"time"
+	"encoding/hex"
 )
 
 func (node *ClusteredBigCache) startUpHttpServer()  {
@@ -16,32 +17,40 @@ func (node *ClusteredBigCache) startUpHttpServer()  {
 	g := gin.Default()
 	g.GET("/local/:key", func(c *gin.Context) {
 		key := c.Param("key")
-		data, ok := node.cache.Get(key)
-		c.JSON(http.StatusOK, map[string]string{"key":key, "exist": strconv.FormatBool(ok == nil),	"data": string(data)})
+		data, err := node.cache.Get(key)
+		if err == nil {
+			c.String(http.StatusOK, hex.Dump(data))
+		} else {
+			c.JSON(http.StatusOK, map[string]string{"key":key, "status": err.Error()})
+		}
 	})
 
 	g.GET("/global/:key", func(c *gin.Context) {
 		key := c.Param("key")
-		data, ok := node.Get(key, time.Second * 1)
-		c.JSON(http.StatusOK, map[string]string{"key":key, "exist": strconv.FormatBool(ok == nil),	"data": string(data)})
+		data, err := node.Get(key, time.Second * 1)
+		if err == nil {
+			c.String(http.StatusOK, hex.Dump(data))
+		} else {
+			c.JSON(http.StatusOK, map[string]string{"key":key, "status": err.Error()})
+		}
 	})
 
-	g.POST("/local/:key/:data/:time", func(c *gin.Context) {
-		key := c.Param("key")
-		data := c.Param("data")
-		n, _ := strconv.Atoi(c.Param("time"))
-		node.cache.Set(key, []byte(data), time.Minute * time.Duration(n))
-		c.String(http.StatusOK, "successfully set %s", key)
-	})
-
-	g.POST("/global/:key/:data/:time", func(c *gin.Context) {
-		key := c.Param("key")
-		data := c.Param("data")
-		sec := c.Param("time")
-		n, _ := strconv.Atoi(sec)
-		node.Put(key, []byte(data), time.Minute * time.Duration(n))
-		c.String(http.StatusOK, "successfully set %s", key)
-	})
+	//g.POST("/local/:key/:data/:time", func(c *gin.Context) {
+	//	key := c.Param("key")
+	//	data := c.Param("data")
+	//	n, _ := strconv.Atoi(c.Param("time"))
+	//	node.cache.Set(key, []byte(data), time.Minute * time.Duration(n))
+	//	c.String(http.StatusOK, "successfully set %s", key)
+	//})
+	//
+	//g.POST("/global/:key/:data/:time", func(c *gin.Context) {
+	//	key := c.Param("key")
+	//	data := c.Param("data")
+	//	sec := c.Param("time")
+	//	n, _ := strconv.Atoi(sec)
+	//	node.Put(key, []byte(data), time.Minute * time.Duration(n))
+	//	c.String(http.StatusOK, "successfully set %s", key)
+	//})
 
 	g.DELETE("/local/:key", func(c *gin.Context) {
 		key := c.Param("key")

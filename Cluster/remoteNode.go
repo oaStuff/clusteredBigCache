@@ -265,7 +265,7 @@ func (r *remoteNode) networkConsumer() {
 // bytes 5 upwards == message content
 func (r *remoteNode) sendMessage(m message.NodeMessage) {
 	msg := m.Serialize()
-	data := make([]byte, 6 + len(msg.Data))
+	data := make([]byte, 6 + len(msg.Data))	// 6 ==> 4bytes for length of message, 2bytes for message code
 	binary.LittleEndian.PutUint32(data, uint32(len(msg.Data) + 2)) //the 2 is for the message code
 	binary.LittleEndian.PutUint16(data[4:], msg.Code)
 	copy(data[6:], msg.Data)

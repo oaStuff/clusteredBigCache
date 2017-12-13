@@ -81,7 +81,6 @@ func TestPutData(t *testing.T)  {
 
 
 	node1.Start()
-	//time.Sleep(time.Millisecond * 500)
 	node2.Start()
 
 	node1.Put("key_1", []byte("data_1"), time.Minute * 1)
