@@ -1,6 +1,8 @@
 package message
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+)
 
 type PutMessage struct {
 	Code		uint16		`json:"code"`

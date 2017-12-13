@@ -89,6 +89,31 @@ func (c *Connection) Read(p []byte) (int, error) {
 	return n, err
 }
 
+func (c *Connection) Write(data []byte) (int, error)  {
+	if !c.Usable {
+		return 0, errConnectionUnusable
+	}
+
+	c.writeLock.Lock()
+	defer c.writeLock.Unlock()
+
+	count := 0
+	size := len(data)
+	for count < size {
+		n, err := c.conn.Write(data[count:])
+		if err != nil {
+			if err == io.EOF {
+				c.Usable = false
+			}
+			return count, err
+		}
+
+		count += n
+	}
+
+	return count, nil
+}
+
 //Send a []byte over the network
 func (c *Connection) SendData(data []byte) error {
 

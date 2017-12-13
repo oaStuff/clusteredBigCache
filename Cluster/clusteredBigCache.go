@@ -117,8 +117,9 @@ func (node *ClusteredBigCache) Start() error {
 	node.checkConfig()
 	if "" == node.config.Id {
 		node.config.Id = utils.GenerateNodeId(32)
-		utils.Info(node.logger, "Cluster ID is "+node.config.Id)
 	}
+	utils.Info(node.logger, "Cluster ID is "+node.config.Id)
+
 
 	if err := node.bringNodeUp(); err != nil {
 		return err
@@ -286,18 +287,20 @@ func (node *ClusteredBigCache) doShardReplication(key string, data []byte, durat
 	return nil
 }
 
+//puts the data into the cluster
 func (node *ClusteredBigCache) Put(key string, data []byte, duration time.Duration) error {
 
 	if node.config.ReplicationMode == REPLICATION_MODE_SHARD {
 		return node.doShardReplication(key, data, duration)
 	}
 
-	//we are going to do full replication across the cluster
+	//store it locally first
 	expiryTime, err := node.cache.Set(key, data, duration)
 	if err != nil {
 		return err
 	}
 
+	//we are going to do full replication across the cluster
 	peers := node.remoteNodes.Values()
 	for x := 0; x < len(peers); x++ {	//just replicate serially from left to right
 		node.replicationChan <- &replicationMsg{r:peers[x].(*remoteNode),
@@ -307,7 +310,9 @@ func (node *ClusteredBigCache) Put(key string, data []byte, duration time.Durati
 	return nil
 }
 
+//gets the data from the cluster
 func (node *ClusteredBigCache) Get(key string, timeout time.Duration) ([]byte, error) {
+	//if present locally then send it
 	data, err := node.cache.Get(key)
 	if err == nil {
 		return data, nil
@@ -319,7 +324,7 @@ func (node *ClusteredBigCache) Get(key string, timeout time.Duration) ([]byte, e
 	reqData := &getRequestData{key: key, randStr: utils.GenerateNodeId(8),
 									replyChan: replyC, done: make(chan struct{})}
 
-	//TODO: should we send to every remote node?
+
 	for _, peer := range peers {
 		node.getRequestChan <- &getRequestDataWrapper{r: peer.(*remoteNode), g: reqData}
 	}
@@ -337,6 +342,7 @@ func (node *ClusteredBigCache) Get(key string, timeout time.Duration) ([]byte, e
 
 func (node *ClusteredBigCache) Delete(key string) error {
 
+	//delete locally
 	node.cache.Delete(key)
 
 	peers := node.remoteNodes.Values()
@@ -350,12 +356,14 @@ func (node *ClusteredBigCache) Delete(key string) error {
 	return nil
 }
 
+//a goroutine to send get request to members of the cluster
 func (node *ClusteredBigCache) requestSenderForGET() {
 	for value := range node.getRequestChan {
 		value.r.getData(value.g)
 	}
 }
 
+//a goroutine used to replicate messages across the cluster
 func (node *ClusteredBigCache) replication() {
 	for msg := range node.replicationChan {
 		msg.r.sendMessage(msg.m)

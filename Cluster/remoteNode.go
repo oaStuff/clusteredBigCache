@@ -252,15 +252,15 @@ func (r *remoteNode) networkConsumer() {
 
 	for (r.state == nodeStateConnected) || (r.state == nodeStateHandshake) {
 
-		header, err := r.connection.ReadData(4, 0) //read 4 byte header
+		header, err := r.connection.ReadData(6, 0) //read 6 byte header
 		if nil != err {
 			utils.Critical(r.logger, fmt.Sprintf("remote node '%s' has disconnected", r.config.Id))
 			r.shutDown()
 			return
 		}
 
-		dataLength := int16(binary.LittleEndian.Uint16(header)) - 2 //subtracted 2 becos of message code
-		msgCode := binary.LittleEndian.Uint16(header[2:])
+		dataLength := binary.LittleEndian.Uint32(header) - 2 //subtracted 2 becos of message code
+		msgCode := binary.LittleEndian.Uint16(header[4:])
 		var data []byte = nil
 		if dataLength > 0 {
 			data, err = r.connection.ReadData(uint(dataLength), 0)
@@ -282,10 +282,10 @@ func (r *remoteNode) networkConsumer() {
 // bytes 5 upwards == message content
 func (r *remoteNode) sendMessage(m message.NodeMessage) {
 	msg := m.Serialize()
-	data := make([]byte, 4+len(msg.Data))
-	binary.LittleEndian.PutUint16(data, uint16(len(msg.Data)+2)) //the 2 is for the message code
-	binary.LittleEndian.PutUint16(data[2:], msg.Code)
-	copy(data[4:], msg.Data)
+	data := make([]byte, 6 + len(msg.Data))
+	binary.LittleEndian.PutUint32(data, uint32(len(msg.Data) + 2)) //the 2 is for the message code
+	binary.LittleEndian.PutUint16(data[4:], msg.Code)
+	copy(data[6:], msg.Data)
 	if err := r.connection.SendData(data); err != nil {
 		utils.Critical(r.logger, "unexpected error while sending data ["+err.Error()+"]")
 		r.shutDown()
