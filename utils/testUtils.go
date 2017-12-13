@@ -56,10 +56,10 @@ func (c *TestServer) SendVerifyMessage(id string)  {
 	<-c.started
 	verifyMsg := message.VerifyMessage{Id: id, ServicePort: "1111"}
 	wMsg := verifyMsg.Serialize()
-	d := make([]byte, 4 + len(wMsg.Data))
-	binary.LittleEndian.PutUint16(d, uint16(len(wMsg.Data) + 2))  //the 2 is for the message code
-	binary.LittleEndian.PutUint16(d[2:],wMsg.Code)
-	copy(d[4:], wMsg.Data)
+	d := make([]byte, 6 + len(wMsg.Data))
+	binary.LittleEndian.PutUint32(d, uint32(len(wMsg.Data) + 2))  //the 2 is for the message code
+	binary.LittleEndian.PutUint16(d[4:],wMsg.Code)
+	copy(d[6:], wMsg.Data)
 	c.conn.Write(d)
 }
 
@@ -69,23 +69,23 @@ func (c *TestClient) readNetwork()  {
 		for range time.NewTicker(time.Second * 1).C {
 			msg := &message.PingMessage{}
 			wireMsg := msg.Serialize()
-			data := make([]byte, 4 + len(wireMsg.Data))
-			binary.LittleEndian.PutUint16(data, uint16(len(wireMsg.Data) + 2))  //the 2 is for the message code
-			binary.LittleEndian.PutUint16(data[2:],wireMsg.Code)
-			copy(data[4:], wireMsg.Data)
+			data := make([]byte, 6 + len(wireMsg.Data))
+			binary.LittleEndian.PutUint32(data, uint32(len(wireMsg.Data) + 2))  //the 2 is for the message code
+			binary.LittleEndian.PutUint16(data[4:],wireMsg.Code)
+			copy(data[6:], wireMsg.Data)
 			c.conn.Write(data)
 		}
 	}()
 
-	header := make([]byte, 4)
+	header := make([]byte, 6)
 	for {
 		_, err := c.conn.Read(header)
 		if err != nil {
 			break
 		}
 
-		length := binary.LittleEndian.Uint16(header)
-		code := binary.LittleEndian.Uint16(header[2:])
+		length := binary.LittleEndian.Uint32(header)
+		code := binary.LittleEndian.Uint16(header[4:])
 
 		var data []byte = nil
 		if (length - 2) > 0 {
@@ -99,30 +99,30 @@ func (c *TestClient) readNetwork()  {
 		if code == message.MsgVERIFY {
 			msg := &message.VerifyOKMessage{}
 			wireMsg := msg.Serialize()
-			data := make([]byte, 4 + len(wireMsg.Data))
-			binary.LittleEndian.PutUint16(data, uint16(len(wireMsg.Data) + 2))  //the 2 is for the message code
-			binary.LittleEndian.PutUint16(data[2:],wireMsg.Code)
-			copy(data[4:], wireMsg.Data)
+			data := make([]byte, 6 + len(wireMsg.Data))
+			binary.LittleEndian.PutUint32(data, uint32(len(wireMsg.Data) + 2))  //the 2 is for the message code
+			binary.LittleEndian.PutUint16(data[4:],wireMsg.Code)
+			copy(data[6:], wireMsg.Data)
 			c.conn.Write(data)
 
 		}else if code == message.MsgPING {
 			if c.respondToPings {
 				msg := &message.PongMessage{}
 				wireMsg := msg.Serialize()
-				data := make([]byte, 4+len(wireMsg.Data))
-				binary.LittleEndian.PutUint16(data, uint16(len(wireMsg.Data)+2)) //the 2 is for the message code
-				binary.LittleEndian.PutUint16(data[2:], wireMsg.Code)
-				copy(data[4:], wireMsg.Data)
+				data := make([]byte, 6+len(wireMsg.Data))
+				binary.LittleEndian.PutUint32(data, uint32(len(wireMsg.Data)+2)) //the 2 is for the message code
+				binary.LittleEndian.PutUint16(data[4:], wireMsg.Code)
+				copy(data[6:], wireMsg.Data)
 				c.conn.Write(data)
 			}
 
 		} else if code == message.MsgVERIFYOK  {
 			msg := &message.SyncReqMessage{}
 			wireMsg := msg.Serialize()
-			data := make([]byte, 4 + len(wireMsg.Data))
-			binary.LittleEndian.PutUint16(data, uint16(len(wireMsg.Data) + 2))  //the 2 is for the message code
-			binary.LittleEndian.PutUint16(data[2:],wireMsg.Code)
-			copy(data[4:], wireMsg.Data)
+			data := make([]byte, 6 + len(wireMsg.Data))
+			binary.LittleEndian.PutUint32(data, uint32(len(wireMsg.Data) + 2))  //the 2 is for the message code
+			binary.LittleEndian.PutUint16(data[4:],wireMsg.Code)
+			copy(data[6:], wireMsg.Data)
 			c.conn.Write(data)
 
 		} else if code == message.MsgPONG {
@@ -135,10 +135,10 @@ func (c *TestClient) readNetwork()  {
 				{Id:"remote_3", IpAddress:"10.10.0.1:9090"}}
 
 			wMsg := listMsg.Serialize()
-			d := make([]byte, 4 + len(wMsg.Data))
-			binary.LittleEndian.PutUint16(d, uint16(len(wMsg.Data) + 2))  //the 2 is for the message code
-			binary.LittleEndian.PutUint16(d[2:],wMsg.Code)
-			copy(d[4:], wMsg.Data)
+			d := make([]byte, 6 + len(wMsg.Data))
+			binary.LittleEndian.PutUint32(d, uint32(len(wMsg.Data) + 2))  //the 2 is for the message code
+			binary.LittleEndian.PutUint16(d[4:],wMsg.Code)
+			copy(d[6:], wMsg.Data)
 			c.conn.Write(d)
 		}
 	}
