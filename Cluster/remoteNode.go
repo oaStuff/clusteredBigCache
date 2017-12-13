@@ -50,7 +50,6 @@ type remoteNode struct {
 	connection    *comms.Connection
 	parentNode    *ClusteredBigCache
 	msgQueue      chan *message.NodeWireMessage
-	//indexInParent int
 	logger        utils.AppLogger
 	state         remoteNodeState
 	stateLock     sync.Mutex
@@ -61,22 +60,6 @@ type remoteNode struct {
 	pendingGet	  *sync.Map
 }
 
-//used by SliceList to check for equality of items in the list
-func remoteNodeEqualFunc(item1, item2 interface{}) bool {
-	if (nil == item1) || (nil == item2) {
-		return false
-	}
-	return item1.(*remoteNode).config.Id == item2.(*remoteNode).config.Id
-}
-
-//used by SliceList to get the key of objects stored in the list
-func remoteNodeKeyFunc(item interface{}) string {
-	if nil == item {
-		return ""
-	}
-
-	return item.(*remoteNode).config.Id
-}
 
 //check configurations for sensible defaults
 func checkConfig(logger utils.AppLogger, config *remoteNodeConfig) {
