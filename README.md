@@ -9,7 +9,7 @@ Bigcache is an excellent piece of software but the fact that items could only ex
 value was not just too appealing. Bigcache had to be modified to support individual expiration of items using
 a single timer. This happens by you specifying a time value as you add items to the cache.
 Running two or more instances of an application that would require some level of caching would normally
-default to memcache or redis which are external application, adding to the mix of services required for your
+default to memcache or redis which are external applications adding to the mix of services required for your
 application to run.
 
 With clusteredBigCache there is no requirement to run an external application to provide caching for multiple
@@ -17,7 +17,7 @@ instances of your application. The library handles caching as well as clustering
 instances of your application providing you with simple library APIs (by just calling functions) to store and
 get your values.
 
-With clusteredBigCache, when you store a value in one instance of your application every other instance 
+With clusteredBigCache, when you store a value in one instance of your application and every other instance 
 or any other application for that matter that you configure to form/join your "cluster" will
 see that exact same value.
 
@@ -149,14 +149,14 @@ will be returned.
     err := cache.Start()
 ```
 
-The above uses the default configuration to create a config and modifies what is actually needed.
+The above uses the default configuration to create a config and modifies what it actually needs.
 `config.LocalPort = 8888` has to be changed since this application will run on the same machine with the sample1 
 application. This is to avoid 'port already in use' errors. 
 
 `config.Join = true`. For an application to join another
 application or applications using clusteredBigCache, it **must** set *config.Join* value to *true* and set `config.JoinIP` to 
 the IP address of one of the systems using clusteredBigCache eg `config.Join = "127.0.0.1:9911`. This example says that this application 
-wants to join to another application using clusteredBigCache at IP address *127.0.0.1* and port number *9911*.
+wants to join another application using clusteredBigCache at IP address *127.0.0.1* and port number *9911*.
 
 `cache := clusteredBigCache.New(config, nil)` creates the cache and `cache.Start()` must be called to start everything running.
 
