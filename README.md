@@ -160,7 +160,7 @@ wants to join another application using clusteredBigCache at IP address *127.0.0
 
 `cache := clusteredBigCache.New(config, nil)` creates the cache and `cache.Start()` must be called to start everything running.
 
-**NB**
+__**NB**__
 
 After `cache.Start()` is called the library tries to connect to the specified IP address using the specified port. 
 When successfully connected, it create a cluster of applications using clusteredBigCache as a single cache. ie all applications connected will see every value 
