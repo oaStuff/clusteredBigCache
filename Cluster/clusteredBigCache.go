@@ -17,11 +17,16 @@ import (
 const (
 	REPLICATION_MODE_FULL_REPLICATE byte = iota
 	REPLICATION_MODE_SHARD
+
+	clusterStateStarting byte = iota
+	clusterStateStarted
+	clusterStateEnded
 )
 
 var (
 	ErrNotEnoughReplica		=	errors.New("not enough replica")
 	ErrNotFound				= 	errors.New("data not found")
+	ErrNotStarted			=	errors.New("node not started, call Start()")
 )
 
 //Cluster configuration
@@ -39,6 +44,7 @@ type ClusteredBigCacheConfig struct {
 	WriteAck          bool   `json:"write_ack"`
 	DebugMode		  bool	`json:"debug_mode"`
 	DebugPort 		  int 	`json:"debug_port"`
+	ReconnectOnDisconnect	bool	`json:"reconnect_on_disconnect"`
 }
 
 //Cluster definition
@@ -47,13 +53,13 @@ type ClusteredBigCache struct {
 	cache          *bigcache.BigCache
 	remoteNodes    *utils.SliceList
 	logger         utils.AppLogger
-	//lock           sync.Mutex
 	serverEndpoint net.Listener
 	joinQueue      chan *message.ProposedPeer
 	pendingConn    sync.Map
 	nodeIndex	   int
 	getRequestChan	chan *getRequestDataWrapper
 	replicationChan	chan *replicationMsg
+	state 			byte
 }
 
 //create a new local node
@@ -75,6 +81,7 @@ func New(config *ClusteredBigCacheConfig, logger utils.AppLogger) *ClusteredBigC
 		nodeIndex: 	 0,
 		getRequestChan:	 make(chan *getRequestDataWrapper, 1024),
 		replicationChan: make(chan *replicationMsg, 4096),
+		state: 			clusterStateStarting,
 	}
 }
 
@@ -136,11 +143,15 @@ func (node *ClusteredBigCache) Start() error {
 		}
 	}
 
+	node.state = clusterStateStarted
+
 	return nil
 }
 
 //shut down this Cluster and all terminate all connections to remoteNodes
 func (node *ClusteredBigCache) ShutDown() {
+
+	node.state = clusterStateEnded
 	for _, v := range node.remoteNodes.Values() {
 		v.(*remoteNode).shutDown()
 	}
@@ -148,6 +159,7 @@ func (node *ClusteredBigCache) ShutDown() {
 	close(node.joinQueue)
 	close(node.getRequestChan)
 	close(node.replicationChan)
+
 	if node.serverEndpoint != nil {
 		node.serverEndpoint.Close()
 	}
@@ -162,7 +174,7 @@ func (node *ClusteredBigCache) joinCluster() error {
 
 	remoteNode := newRemoteNode(&remoteNodeConfig{IpAddress: node.config.JoinIp,
 												ConnectRetries: node.config.ConnectRetries,
-												Sync: true}, node, node.logger)
+												Sync: true, ReconnectOnDisconnect: node.config.ReconnectOnDisconnect}, node, node.logger)
 	remoteNode.join()
 	return nil
 }
@@ -234,7 +246,7 @@ func (node *ClusteredBigCache) listen() {
 		tcpConn := conn.(*net.TCPConn)
 		remoteNode := newRemoteNode(&remoteNodeConfig{IpAddress: tcpConn.RemoteAddr().String(),
 														ConnectRetries: node.config.ConnectRetries,
-														Sync: false}, node, node.logger)
+														Sync: false, ReconnectOnDisconnect: false}, node, node.logger)
 		remoteNode.setState(nodeStateHandshake)
 		remoteNode.setConnection(comms.WrapConnection(tcpConn))
 		utils.Info(node.logger, fmt.Sprintf("new connection from remote '%s'", tcpConn.RemoteAddr().String()))
@@ -257,6 +269,11 @@ func (node *ClusteredBigCache) DoTest() {
 func (node *ClusteredBigCache) connectToExistingNodes() {
 
 	for value := range node.joinQueue {
+
+		if node.state != clusterStateStarted {
+			continue
+		}
+
 		if _, ok := node.pendingConn.Load(value.Id); ok {
 			utils.Warn(node.logger, fmt.Sprintf("remote node '%s' already in connnection pending queue", value.Id))
 			continue
@@ -271,7 +288,7 @@ func (node *ClusteredBigCache) connectToExistingNodes() {
 		//we are here because we don't know this remote node
 		remoteNode := newRemoteNode(&remoteNodeConfig{IpAddress: value.IpAddress,
 			ConnectRetries: node.config.ConnectRetries,
-			Id: value.Id, Sync: false}, node, node.logger)
+			Id: value.Id, Sync: false, ReconnectOnDisconnect: node.config.ReconnectOnDisconnect}, node, node.logger)
 		remoteNode.join()
 		node.pendingConn.Store(value.Id, value.IpAddress)
 	}
@@ -293,6 +310,10 @@ func (node *ClusteredBigCache) doShardReplication(key string, data []byte, durat
 
 //puts the data into the cluster
 func (node *ClusteredBigCache) Put(key string, data []byte, duration time.Duration) error {
+
+	if node.state != clusterStateStarted {
+		return ErrNotStarted
+	}
 
 	if node.config.ReplicationMode == REPLICATION_MODE_SHARD {
 		return node.doShardReplication(key, data, duration)
@@ -316,6 +337,11 @@ func (node *ClusteredBigCache) Put(key string, data []byte, duration time.Durati
 
 //gets the data from the cluster
 func (node *ClusteredBigCache) Get(key string, timeout time.Duration) ([]byte, error) {
+
+	if node.state != clusterStateStarted {
+		return nil, ErrNotStarted
+	}
+
 	//if present locally then send it
 	data, err := node.cache.Get(key)
 	if err == nil {
@@ -345,6 +371,10 @@ func (node *ClusteredBigCache) Get(key string, timeout time.Duration) ([]byte, e
 }
 
 func (node *ClusteredBigCache) Delete(key string) error {
+
+	if node.state != clusterStateStarted {
+		return ErrNotStarted
+	}
 
 	//delete locally
 	node.cache.Delete(key)

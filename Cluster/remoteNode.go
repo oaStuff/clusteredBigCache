@@ -41,6 +41,7 @@ type remoteNodeConfig struct {
 	ConnectRetries        int    `json:"connect_retries"`
 	ServicePort           string `json:"service_port"`
 	Sync                  bool   `json:"sync"`
+	ReconnectOnDisconnect bool	 `json:"reconnect_on_disconnect"`
 }
 
 // remote node definition
@@ -238,7 +239,17 @@ func (r *remoteNode) networkConsumer() {
 		header, err := r.connection.ReadData(6, 0) //read 6 byte header
 		if nil != err {
 			utils.Critical(r.logger, fmt.Sprintf("remote node '%s' has disconnected", r.config.Id))
+			if r == nil {
+				fmt.Println("r is nil")
+			}
+			if r.parentNode == nil {
+				fmt.Println("prent is nil")
+			}
+			jq := r.parentNode.joinQueue
 			r.shutDown()
+			if r.config.ReconnectOnDisconnect {
+				jq <- &message.ProposedPeer{Id: r.config.Id, IpAddress: r.config.IpAddress}
+			}
 			return
 		}
 
@@ -249,7 +260,11 @@ func (r *remoteNode) networkConsumer() {
 			data, err = r.connection.ReadData(uint(dataLength), 0)
 			if nil != err {
 				utils.Critical(r.logger, fmt.Sprintf("remote node '%s' has disconnected", r.config.Id))
+				jq := r.parentNode.joinQueue
 				r.shutDown()
+				if r.config.ReconnectOnDisconnect {
+					jq <- &message.ProposedPeer{Id: r.config.Id, IpAddress: r.config.IpAddress}
+				}
 				return
 			}
 		}
@@ -271,7 +286,11 @@ func (r *remoteNode) sendMessage(m message.NodeMessage) {
 	copy(data[6:], msg.Data)
 	if err := r.connection.SendData(data); err != nil {
 		utils.Critical(r.logger, "unexpected error while sending data ["+err.Error()+"]")
+		jq := r.parentNode.joinQueue
 		r.shutDown()
+		if r.config.ReconnectOnDisconnect {
+			jq <- &message.ProposedPeer{Id: r.config.Id, IpAddress: r.config.IpAddress}
+		}
 	}
 }
 
@@ -287,7 +306,7 @@ func (r *remoteNode) shutDown() {
 	r.state = nodeStateDisconnected
 	r.parentNode.eventRemoteNodeDisconneced(r)
 	r.connection.Close()
-	r.parentNode = nil
+
 	if r.pingTimeout != nil {
 		r.pingTimeout.Stop()
 	}

@@ -34,5 +34,6 @@ func DefaultClusterConfig() *ClusteredBigCacheConfig {
 			ReplicationFactor:       1,
 			WriteAck:                true,
 			ReplicationMode:         REPLICATION_MODE_FULL_REPLICATE,
+			ReconnectOnDisconnect: 	 false,
 		}
 }
