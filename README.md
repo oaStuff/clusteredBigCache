@@ -27,61 +27,146 @@ see that exact same value.
 
     $ go get github.com/oaStuff/clusteredBigCache
 
-## Sample
+## Samples 1
 
-Let's have a look at an example 
+This is the application responsible for storing data into the cache
+
 ```go
 package main
 
 import (
-
-    "os"
-    "os/signal"
-    "syscall"
     "fmt"
+    "bufio"
+    "os"
     "github.com/oaStuff/clusteredBigCache/Cluster"
-    "flag"
+    "strings"
     "time"
 )
-    
 
+//
+//main function
+//
 func main() {
-
-    join := flag.String("join", "", "ipAddr:port number of remote server")
-    replicationFactor := flag.Int("rf", 1, "replication factor for data stored")
-    localPort := flag.Int("port", 6060, "local server port to bind to")
-    debugPort := flag.Int("dport", 0, "debug port for debugging")
-    
-    flag.Parse()
-    config := clusteredBigCache.DefaultClusterConfig()
-    config.ReplicationFactor = *replicationFactor
-    if *join != "" {
-        config.JoinIp = *join
-        config.Join = true
-    }
-    config.LocalPort = *localPort
-    if *debugPort != 0 {
-        config.DebugPort = *debugPort
-        config.DebugMode = true
-    }
-    
-    cache := clusteredBigCache.New(config, nil)
-    
-    
+    fmt.Println("starting...")
+    cache := clusteredBigCache.New(clusteredBigCache.DefaultClusterConfig(), nil)
+    count := 1
     cache.Start()
-    
-    
-    
-    
-    
-    c := make(chan os.Signal, 1)
-    signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
-    fmt.Println("press ctrl + C to exit")
-    <-c
-    fmt.Println("program stopped")
 
-
+    reader := bufio.NewReader(os.Stdin)
+    var data string
+    for strings.ToLower(data) != "exit" {
+        fmt.Print("enter data : ")
+        data, _ = reader.ReadString('\n')
+        data = strings.TrimSpace(data)
+        err := cache.Put(fmt.Sprintf("key_%d", count), []byte(data), time.Minute * 60)
+        if err != nil {
+            panic(err)
+       	}
+       	fmt.Printf("'%s' stored under key 'key_%d'\n", data, count)
+       	count++
+   	}
 }
 
+```
+
+##### Explanation:
+
+The above application captures data from the keyboard and stores them inside clusteredBigCache
+start with keys 'key_1', 'key_2'...'key_n'. As the user types and presses the enter key the data is stored in 
+the cache.
+
+`cache := clusteredBigCache.New(clusteredBigCache.DefaultClusterConfig(), nil)`
+This statement will create the cache using the default configuration. This configuration has default 
+values for *LocalPort = 9911*, *Join = false* amongst others. If you intend to use this library for applications
+that will run on the same machine, you will have to give unique values for *LocalPort*
+
+`cache.Start()` This **must** be called before using any other method on this cache.
+
+`err := cache.Put(fmt.Sprintf("key_%d", count), []byte(data), time.Minute * 60)`. You set values in the cache
+giving it a key, the data as a `[]byte` slice and the expiration or time to live (ttl) for that key/value within the cache.
+When the key/value pair reaches its expiration time, they are removed automatically.
+
+
+## Samples 2
+
+This is the application responsible for reading data of the cache. This can be run on the same or different machine
+on the network.
+
+```go
+package main
+
+import (
+    "github.com/oaStuff/clusteredBigCache/Cluster"
+    "bufio"
+    "os"
+    "strings"
+    "fmt"
+    "time"
+)
+
+//
+//
+func main() {
+    config := clusteredBigCache.DefaultClusterConfig()
+    config.LocalPort = 8888
+    config.Join = true
+    config.JoinIp = "127.0.0.1:9911"
+    cache := clusteredBigCache.New(config, nil)
+    err := cache.Start()
+    if err != nil {
+        panic(err)
+    }
+    
+    reader := bufio.NewReader(os.Stdin)
+    var data string
+    for strings.ToLower(data) != "exit" {
+        fmt.Print("enter key : ")
+        data, _ = reader.ReadString('\n')
+        data = strings.TrimSpace(data)
+        value, err := cache.Get(data, time.Millisecond * 160)
+        if err != nil {
+            fmt.Println(err)
+            continue
+        }
+        fmt.Printf("you got '%s' from the cache\n", value)
+    }
+}
 
 ```
+
+##### Explanation:
+
+The above application reads a string from the keyboard which should represent a key for a value in clusteredBigCache.
+If a user enters the corresponding keys shown in sample1 above ('key_1', 'key_2'...'key_n'), the corresponding values
+will be returned.
+
+```go
+    config := clusteredBigCache.DefaultClusterConfig()
+    config.LocalPort = 8888
+    config.Join = true
+    config.JoinIp = "127.0.0.1:9911"
+    cache := clusteredBigCache.New(config, nil)
+    err := cache.Start()
+```
+
+The above uses the default configuration to create a config and modifies what is actually needed.
+`config.LocalPort = 8888` has to be changed since this application will run on the same machine with the sample1 
+application. This is to avoid 'port already in use' errors. 
+
+`config.Join = true`. For an application to join another
+application or applications using clusteredBigCache, it **must** set *config.Join* value to *true* and set `config.JoinIP` to 
+the IP address of one of the systems using clusteredBigCache eg `config.Join = "127.0.0.1:9911`. This example says that this application 
+wants to join to another application using clusteredBigCache at IP address *127.0.0.1* and port number *9911*.
+
+`cache := clusteredBigCache.New(config, nil)` creates the cache and `cache.Start()` must be called to start everything running.
+
+**NB**
+
+After `cache.Start()` is called the library tries to connect to the specified IP address using the specified port. 
+When successfully connected, it create a cluster of applications using clusteredBigCache as a single cache. ie all applications connected will see every value 
+every application sets in the cache.
+
+
+
+
+
