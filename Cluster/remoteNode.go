@@ -404,7 +404,6 @@ func (r *remoteNode) handleVerifyOK() {
 			}
 		}
 	}()
-
 }
 
 //handles ping message from a remote node
