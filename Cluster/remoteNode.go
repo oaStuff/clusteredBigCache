@@ -239,12 +239,6 @@ func (r *remoteNode) networkConsumer() {
 		header, err := r.connection.ReadData(6, 0) //read 6 byte header
 		if nil != err {
 			utils.Critical(r.logger, fmt.Sprintf("remote node '%s' has disconnected", r.config.Id))
-			if r == nil {
-				fmt.Println("r is nil")
-			}
-			if r.parentNode == nil {
-				fmt.Println("prent is nil")
-			}
 			jq := r.parentNode.joinQueue
 			r.shutDown()
 			if r.config.ReconnectOnDisconnect {
