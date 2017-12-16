@@ -166,6 +166,42 @@ After `cache.Start()` is called the library tries to connect to the specified IP
 When successfully connected, it create a cluster of applications using clusteredBigCache as a single cache. ie all applications connected will see every value 
 every application sets in the cache.
 
+####Sample way to parse config in an app
+
+```go
+    join := flag.String("join", "", "ipAddr:port number of remote server")
+    localPort := flag.Int("port", 6060, "local server port to bind to")
+
+    
+    flag.Parse()
+    
+    config := clusteredBigCache.DefaultClusterConfig()
+    if *join != "" {
+        config.JoinIp = *join
+        config.Join = true
+    }
+    config.LocalPort = *localPort
+```
+
+Your application could pass parameters to it in any form and make use of them in configuring clusteredBigCache. The
+above sample just only catered for `join` and `localport`. If you want network connections between machine to be reconnected
+in the event of a disconnection, you will have to set `config.ReconnectOnDisconnect = true`.
+
+####Logging within the library
+
+clusteredBigCache take a second parameter is its New() function for logging.
+This function expects an interface of 
+```go
+type AppLogger interface {
+    Info(msg string)
+    Warn(msg string)
+    Critical(msg string)
+    Error(msg string)
+}
+```
+
+You could easily just wrap any logger within a `struct` and provide this interface method for that struct and simple
+delegate calls to the underlining logger.
 
 
 
