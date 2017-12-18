@@ -116,10 +116,6 @@ func (node *ClusteredBigCache) setReplicationFactor(rf int)  {
 //start this Cluster running
 func (node *ClusteredBigCache) Start() error {
 
-	if node.config.DebugMode {
-		go node.startUpHttpServer()
-	}
-
 	for x := 0; x < 5; x++ {
 		go node.requestSenderForGET()
 		go node.replication()
