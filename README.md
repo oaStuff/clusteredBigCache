@@ -72,7 +72,7 @@ func main() {
 ##### Explanation:
 
 The above application captures data from the keyboard and stores them inside clusteredBigCache
-start with keys 'key_1', 'key_2'...'key_n'. As the user types and presses the enter key the data is stored in 
+starting with keys 'key_1', 'key_2'...'key_n'. As the user types and presses the enter key the data is stored in
 the cache.
 
 `cache := clusteredBigCache.New(clusteredBigCache.DefaultClusterConfig(), nil)`
@@ -204,7 +204,7 @@ You could easily just wrap any logger within a `struct` and provide this interfa
 delegate calls to the underlining logger.
 
 ##### credits
-
+Core cache system from [bigcache](https://github.com/allegro/bigcache)
 Data structures from [emirpasic](https://github.com/emirpasic/gods)
 
 
