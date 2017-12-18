@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+const NO_EXPIRY uint64 = 0
+
 type cacheShard struct {
 	sharedNum   uint64
 	hashmap     map[uint64]uint32
@@ -21,8 +23,8 @@ type cacheShard struct {
 	clock      clock
 	lifeWindow uint64
 
-	stats Stats
-	ttlTable	 *ttlManager
+	stats    Stats
+	ttlTable *ttlManager
 }
 
 type onRemoveCallback func(wrappedEntry []byte)
@@ -56,13 +58,17 @@ func (s *cacheShard) get(key string, hashedKey uint64) ([]byte, error) {
 	return readEntry(wrappedEntry), nil
 }
 
-func (s *cacheShard) set(key string, hashedKey uint64, entry []byte, duration time.Duration) (error) {
-	expiryTimestamp := uint64(s.clock.epoch()) + uint64(duration.Seconds())
+func (s *cacheShard) set(key string, hashedKey uint64, entry []byte, duration time.Duration) (uint64, error) {
+	expiryTimestamp := uint64(s.clock.epoch())
+	if duration != time.Duration(NO_EXPIRY) {
+		expiryTimestamp += uint64(duration.Seconds())
+	} else {
+		expiryTimestamp = NO_EXPIRY
+	}
 
 	s.lock.Lock()
 
 	if previousIndex := s.hashmap[hashedKey]; previousIndex != 0 {
-		//log.Println("previious value")
 		if previousEntry, err := s.entries.Get(int(previousIndex)); err == nil {
 			timestamp := readTimestampFromEntry(previousEntry)
 			s.ttlTable.remove(timestamp, key)
@@ -70,41 +76,32 @@ func (s *cacheShard) set(key string, hashedKey uint64, entry []byte, duration ti
 		}
 	}
 
-	//if oldestEntry, err := s.entries.Peek(); err == nil {
-	//	s.onEvict(oldestEntry, expiryTimestamp, s.removeOldestEntry)
-	//}
-
 	w := wrapEntry(expiryTimestamp, hashedKey, key, entry, &s.entryBuffer)
 
 	var err error
-	//for {
 	if index, err := s.entries.Push(w); err == nil {
 		s.hashmap[hashedKey] = uint32(index)
 		s.lock.Unlock()
-		s.ttlTable.put(expiryTimestamp, key)
-		return nil
+		if duration != time.Duration(NO_EXPIRY) {
+			s.ttlTable.put(expiryTimestamp, key)
+		}
+		return expiryTimestamp, nil
 	}
-		//if s.removeOldestEntry() != nil {
-		//	s.lock.Unlock()
-		//	return fmt.Errorf("entry is bigger than max shard size")
-		//}
-	//}
 
-	return err
+	return 0, err
 }
 
-
-func (s *cacheShard) evictDel(key string, hashedKey uint64) (error) {
+func (s *cacheShard) evictDel(key string, hashedKey uint64) error {
 	//the lock is held in ttlManager so it is safe to do normal increment here
 	s.stats.EvictCount++
 	return s.__del(key, hashedKey, true)
 }
 
-func (s *cacheShard) del(key string, hashedKey uint64) (error) {
+func (s *cacheShard) del(key string, hashedKey uint64) error {
 	return s.__del(key, hashedKey, false)
 }
 
-func (s *cacheShard) __del(key string, hashedKey uint64, eviction bool) (error) {
+func (s *cacheShard) __del(key string, hashedKey uint64, eviction bool) error {
 	s.lock.RLock()
 	itemIndex := s.hashmap[hashedKey]
 
@@ -228,7 +225,7 @@ func (s *cacheShard) collision() {
 }
 
 func initNewShard(config Config, callback onRemoveCallback, clock clock, num uint64) *cacheShard {
-	shard:=  &cacheShard{
+	shard := &cacheShard{
 		hashmap:     make(map[uint64]uint32, config.initialShardSize()),
 		entries:     *queue.NewBytesQueue(config.initialShardSize()*config.MaxEntrySize, config.maximumShardSize(), config.Verbose),
 		entryBuffer: make([]byte, config.MaxEntrySize+headersSizeInBytes),

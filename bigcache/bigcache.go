@@ -47,7 +47,6 @@ func newBigCache(config Config, clock clock) (*BigCache, error) {
 		maxShardSize: uint32(config.maximumShardSize()),
 	}
 
-
 	var onRemove func(wrappedEntry []byte)
 	if config.OnRemove == nil {
 		onRemove = cache.notProvidedOnRemove
@@ -56,16 +55,8 @@ func newBigCache(config Config, clock clock) (*BigCache, error) {
 	}
 
 	for i := 0; i < config.Shards; i++ {
-		cache.shards[i] = initNewShard(config, onRemove, clock, uint64(i + 1))
+		cache.shards[i] = initNewShard(config, onRemove, clock, uint64(i+1))
 	}
-
-	//if config.CleanWindow > 0 {
-	//	go func() {
-	//		for t := range time.Tick(config.CleanWindow) {
-	//			cache.cleanUp(uint64(t.Unix()))
-	//		}
-	//	}()
-	//}
 
 	return cache, nil
 }
@@ -78,7 +69,7 @@ func (c *BigCache) Get(key string) ([]byte, error) {
 }
 
 // Set saves entry under the key
-func (c *BigCache) Set(key string, entry []byte, duration time.Duration) error {
+func (c *BigCache) Set(key string, entry []byte, duration time.Duration) (uint64, error) {
 	hashedKey := c.hash.Sum64(key)
 	shard := c.getShard(hashedKey)
 	return shard.set(key, hashedKey, entry, duration)
@@ -136,12 +127,6 @@ func (c *BigCache) onEvict(oldestEntry []byte, currentTimestamp uint64, evict fu
 	}
 	return false
 }
-
-//func (c *BigCache) cleanUp(currentTimestamp uint64) {
-//	for _, shard := range c.shards {
-//		shard.cleanUp(currentTimestamp)
-//	}
-//}
 
 func (c *BigCache) getShard(hashedKey uint64) (shard *cacheShard) {
 	return c.shards[hashedKey&c.shardMask]

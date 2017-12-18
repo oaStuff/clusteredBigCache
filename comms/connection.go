@@ -1,18 +1,18 @@
 package comms
 
 import (
-	"net"
 	"bufio"
-	"time"
 	"errors"
 	"io"
+	"net"
 	"strings"
 	"sync"
+	"time"
 )
 
 var (
 	errConnectionUnusable = errors.New("connection is not usable")
-	errTimeout = errors.New("i/o timeout")
+	errTimeout            = errors.New("i/o timeout")
 )
 
 //defines a connection to a remote peer
@@ -23,16 +23,15 @@ type Connection struct {
 	buffReader  *bufio.Reader
 	readTimeout time.Duration
 	Usable      bool
-	writeLock	sync.Mutex
+	writeLock   sync.Mutex
 }
-
 
 //Create a new tcp connection .
 //Connect to the remote entity
-func NewConnection(endpoint string, connectionTimeout time.Duration) (*Connection, error)  {
+func NewConnection(endpoint string, connectionTimeout time.Duration) (*Connection, error) {
 
 	c := &Connection{}
-	conn, err :=   net.DialTimeout("tcp", endpoint, connectionTimeout)
+	conn, err := net.DialTimeout("tcp", endpoint, connectionTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +62,7 @@ func WrapConnection(conn *net.TCPConn) *Connection {
 	return c
 }
 
-func (c *Connection) SetReadTimeout(timeout time.Duration)  {
+func (c *Connection) SetReadTimeout(timeout time.Duration) {
 	c.readTimeout = timeout
 }
 
@@ -80,7 +79,7 @@ func (c *Connection) Read(p []byte) (int, error) {
 	if err != nil {
 		if err == io.EOF {
 			c.Usable = false
-		}else {
+		} else {
 			if strings.Contains(err.Error(), "timeout") {
 				err = errors.New("i/o timeout")
 			}
@@ -88,6 +87,31 @@ func (c *Connection) Read(p []byte) (int, error) {
 	}
 
 	return n, err
+}
+
+func (c *Connection) Write(data []byte) (int, error)  {
+	if !c.Usable {
+		return 0, errConnectionUnusable
+	}
+
+	c.writeLock.Lock()
+	defer c.writeLock.Unlock()
+
+	count := 0
+	size := len(data)
+	for count < size {
+		n, err := c.conn.Write(data[count:])
+		if err != nil {
+			if err == io.EOF {
+				c.Usable = false
+			}
+			return count, err
+		}
+
+		count += n
+	}
+
+	return count, nil
 }
 
 //Send a []byte over the network
@@ -127,7 +151,6 @@ func (c *Connection) ReadData(size uint, timeout time.Duration) ([]byte, error) 
 	c.SetReadTimeout(timeout)
 	defer c.SetReadTimeout(tmp)
 
-
 	if 0 != timeout {
 		done := make(chan bool)
 		defer close(done)
@@ -149,7 +172,7 @@ func (c *Connection) ReadData(size uint, timeout time.Duration) ([]byte, error) 
 	}
 }
 
-func (c *Connection) Close()  {
+func (c *Connection) Close() {
 	c.Shutdown()
 }
 
@@ -158,4 +181,3 @@ func (c *Connection) Shutdown() {
 	c.buffReader = nil
 	c.Usable = false
 }
-
