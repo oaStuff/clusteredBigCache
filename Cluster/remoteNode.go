@@ -59,6 +59,7 @@ type remoteNode struct {
 	pingTimeout   *time.Timer  //used to monitor ping response
 	pingFailure   int32        //count the number of pings without response
 	pendingGet	  *sync.Map
+	mode 		   byte
 }
 
 
@@ -93,7 +94,6 @@ func newRemoteNode(config *remoteNodeConfig, parent *ClusteredBigCache, logger u
 		stateLock:     sync.Mutex{},
 		parentNode:    parent,
 		logger:        logger,
-		//indexInParent: -1,
 		metrics: 		&nodeMetrics{},
 		pendingGet: 	&sync.Map{},
 	}
@@ -347,7 +347,7 @@ func (r *remoteNode) handleMessage() {
 		case message.MsgSyncRsp:
 			r.handleSyncResponse(msg)
 		case message.MsgSyncReq:
-			r.handleSyncRequest()
+			r.handleSyncRequest(msg)
 		case message.MsgGETReq:
 			r.handleGetRequest(msg)
 		case message.MsgGETRsp:
@@ -365,7 +365,7 @@ func (r *remoteNode) handleMessage() {
 //send a verify messge. this is always the first message to be sent once a connection is established.
 func (r *remoteNode) sendVerify() {
 	verifyMsgRsp := message.VerifyMessage{Id: r.parentNode.config.Id,
-		ServicePort: strconv.Itoa(r.parentNode.config.LocalPort)}
+		ServicePort: strconv.Itoa(r.parentNode.config.LocalPort), Mode: r.parentNode.mode}
 	r.sendMessage(&verifyMsgRsp)
 }
 
@@ -374,13 +374,30 @@ func (r *remoteNode) handleVerify(msg *message.NodeWireMessage) {
 
 	verifyMsgRsp := message.VerifyMessage{}
 	verifyMsgRsp.DeSerialize(msg)
+
+	//check if connecting node and this node are both in passive mode
+	if verifyMsgRsp.Mode == clusterModePASSIVE {
+		if r.parentNode.mode == clusterModePASSIVE {  //passive nodes are not allowed to connect to each other
+			utils.Warn(r.logger, fmt.Sprintf("node '%s' and '%s' are both client nodes shuting down the connection", r.config.Id, verifyMsgRsp.Id))
+			r.shutDown()
+			return
+		}
+	}
+
+
 	r.config.Id = verifyMsgRsp.Id
 	r.config.ServicePort = verifyMsgRsp.ServicePort
+	r.mode = verifyMsgRsp.Mode
 	if !r.parentNode.eventVerifyRemoteNode(r) { //seek parent's node approval on this
 		utils.Warn(r.logger, fmt.Sprintf("node already has remote node '%s' so shutdown new connection", r.config.Id))
 		r.shutDown()
 		return
 	}
+
+	if verifyMsgRsp.Mode == clusterModePASSIVE { //if the node is a client node dont reconnect on disconnect
+		r.config.ReconnectOnDisconnect = false
+	}
+
 
 	r.setState(nodeStateConnected)
 	r.sendMessage(&message.VerifyOKMessage{}) //must reply back with a verify OK message if all goes well
@@ -400,7 +417,7 @@ func (r *remoteNode) handleVerifyOK() {
 		}
 		if count < 5 {
 			if r.config.Sync { //only sync if you are joining the cluster
-				r.sendMessage(&message.SyncReqMessage{})
+				r.sendMessage(&message.SyncReqMessage{Mode: r.parentNode.mode})
 			}
 		}
 	}()
@@ -421,19 +438,19 @@ func (r *remoteNode) handlePong() {
 }
 
 //build and send a sync message
-func (r *remoteNode) sendSyncResponse() {
+func (r *remoteNode) sendSyncResponse(msg *message.SyncReqMessage) {
 	values := r.parentNode.getRemoteNodes() //call this because of the lock that needs to be held by parentNode
-	length := len(values) - 1               //minus 1 beacause we dont want to send our own info
-	nodeList := make([]message.ProposedPeer, length, length)
-	x := 0
+	nodeList := make([]message.ProposedPeer,0)
 	for _, v := range values {
 		n := v.(*remoteNode)
 		if n.config.Id == r.config.Id {
 			continue
 		}
+		if (n.mode == clusterModePASSIVE) && (msg.Mode == clusterModePASSIVE) {
+			continue
+		}
 		host, _, _ := net.SplitHostPort(n.config.IpAddress)
-		nodeList[x] = message.ProposedPeer{Id: n.config.Id, IpAddress: net.JoinHostPort(host, n.config.ServicePort)}
-		x++
+		nodeList = append(nodeList, message.ProposedPeer{Id: n.config.Id, IpAddress: net.JoinHostPort(host, n.config.ServicePort)})
 	}
 
 	if len(nodeList) > 0 {
@@ -442,8 +459,10 @@ func (r *remoteNode) sendSyncResponse() {
 }
 
 //handles sync request by just sending a sync response
-func (r *remoteNode) handleSyncRequest() {
-	r.sendSyncResponse()
+func (r *remoteNode) handleSyncRequest(msg *message.NodeWireMessage) {
+	m := &message.SyncReqMessage{}
+	m.DeSerialize(msg)
+	r.sendSyncResponse(m)
 }
 
 //accept the sync response and send to parentNode for processing

@@ -1,13 +1,17 @@
 package message
 
+import "encoding/json"
+
 type SyncReqMessage struct {
-	code uint16
+	Code uint16		`json:"code"`
+	Mode byte		`json:"mode"`
 }
 
 func (sc *SyncReqMessage) Serialize() *NodeWireMessage {
-	return &NodeWireMessage{Code: MsgSyncReq}
+	data, _ := json.Marshal(sc)
+	return &NodeWireMessage{Code: MsgSyncReq, Data: data}
 }
 
 func (sc *SyncReqMessage) DeSerialize(msg *NodeWireMessage) {
-	sc.code = msg.Code
+	json.Unmarshal(msg.Data, sc)
 }

@@ -15,6 +15,15 @@ func TestPutMessage(t *testing.T) {
 	}
 }
 
+func TestSyncReqMessage(t *testing.T) {
+	msg := SyncReqMessage{Code: MsgSyncReq, Mode: 20}
+	newMsg := SyncReqMessage{}
+	newMsg.DeSerialize(msg.Serialize())
+	if !reflect.DeepEqual(msg, newMsg) {
+		t.Error("SyncReqMessage serialization and deserialization not working properly")
+	}
+}
+
 func TestSyncRspMessage(t *testing.T) {
 	msg := SyncRspMessage{Code:MsgSyncRsp, List:[]ProposedPeer{
 		{Id: "id_1", IpAddress: "192.168.56.1"},

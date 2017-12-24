@@ -21,6 +21,9 @@ const (
 	clusterStateStarting byte = iota
 	clusterStateStarted
 	clusterStateEnded
+
+	clusterModeACTIVE byte = iota
+	clusterModePASSIVE
 )
 
 var (
@@ -60,6 +63,7 @@ type ClusteredBigCache struct {
 	getRequestChan	chan *getRequestDataWrapper
 	replicationChan	chan *replicationMsg
 	state 			byte
+	mode 			byte
 }
 
 //create a new local node
@@ -75,16 +79,42 @@ func New(config *ClusteredBigCacheConfig, logger utils.AppLogger) *ClusteredBigC
 		cache:       cache,
 		remoteNodes: utils.NewSliceList(),
 		logger:      logger,
-		//lock:        sync.Mutex{},
 		joinQueue:   make(chan *message.ProposedPeer, 512),
 		pendingConn: sync.Map{},
 		nodeIndex: 	 0,
 		getRequestChan:	 make(chan *getRequestDataWrapper, 1024),
 		replicationChan: make(chan *replicationMsg, 4096),
 		state: 			clusterStateStarting,
+		mode: 			clusterModeACTIVE,
 	}
 }
 
+//create a new local node that does not store any data locally
+func NewPassiveClient(serverEndpoint string, localPort int, logger utils.AppLogger) *ClusteredBigCache {
+
+	config := DefaultClusterConfig()
+	config.Join = true
+	config.JoinIp = serverEndpoint
+	config.ReconnectOnDisconnect = true
+	config.LocalPort = localPort
+
+	return &ClusteredBigCache{
+		config:      config,
+		cache:       nil,
+		remoteNodes: utils.NewSliceList(),
+		logger:      logger,
+		joinQueue:   make(chan *message.ProposedPeer, 512),
+		pendingConn: sync.Map{},
+		nodeIndex: 	 0,
+		getRequestChan:	 make(chan *getRequestDataWrapper, 1024),
+		replicationChan: make(chan *replicationMsg, 4096),
+		state: 			clusterStateStarting,
+		mode: 			clusterModePASSIVE,
+	}
+}
+
+
+//check configuration values
 func (node *ClusteredBigCache) checkConfig()  {
 	if node.config.LocalPort < 1 {
 		panic("Local port can not be zero.")
@@ -129,7 +159,7 @@ func (node *ClusteredBigCache) Start() error {
 	if "" == node.config.Id {
 		node.config.Id = utils.GenerateNodeId(32)
 	}
-	utils.Info(node.logger, "Cluster ID is "+node.config.Id)
+	utils.Info(node.logger, "cluster node ID is " + node.config.Id)
 
 
 	if err := node.bringNodeUp(); err != nil {
@@ -260,10 +290,6 @@ func (node *ClusteredBigCache) listen() {
 	}
 }
 
-func (node *ClusteredBigCache) DoTest() {
-	fmt.Printf("list size is : %+v\n", node.remoteNodes.Size())
-}
-
 //this is a goroutine that takes details from a channel and connect to them if they are not known
 //when a remote system connects to this node or when this node connects to a remote system, it will query that system
 //for the list of its connected nodes and pushes that list into this channel so that this node can connect forming
@@ -322,14 +348,28 @@ func (node *ClusteredBigCache) Put(key string, data []byte, duration time.Durati
 	}
 
 	//store it locally first
-	expiryTime, err := node.cache.Set(key, data, duration)
-	if err != nil {
-		return err
+	expiryTime := bigcache.NO_EXPIRY
+	if node.mode == clusterModeACTIVE {
+		var err error
+		expiryTime, err = node.cache.Set(key, data, duration)
+		if err != nil {
+			return err
+		}
+	} else if node.mode == clusterModePASSIVE {
+		expiryTime := uint64(time.Now().Unix())
+		if duration != time.Duration(bigcache.NO_EXPIRY) {
+			expiryTime += uint64(duration.Seconds())
+		} else {
+			expiryTime = bigcache.NO_EXPIRY
+		}
 	}
 
 	//we are going to do full replication across the cluster
 	peers := node.remoteNodes.Values()
 	for x := 0; x < len(peers); x++ {	//just replicate serially from left to right
+		if peers[x].(*remoteNode).mode == clusterModePASSIVE {
+			continue
+		}
 		node.replicationChan <- &replicationMsg{r:peers[x].(*remoteNode),
 												m: &message.PutMessage{Key: key, Data: data, Expiry: expiryTime}}
 	}
@@ -345,9 +385,11 @@ func (node *ClusteredBigCache) Get(key string, timeout time.Duration) ([]byte, e
 	}
 
 	//if present locally then send it
-	data, err := node.cache.Get(key)
-	if err == nil {
-		return data, nil
+	if node.mode == clusterModeACTIVE {
+		data, err := node.cache.Get(key)
+		if err == nil {
+			return data, nil
+		}
 	}
 
 	//we did not get the data locally so lets check the cluster
@@ -358,6 +400,9 @@ func (node *ClusteredBigCache) Get(key string, timeout time.Duration) ([]byte, e
 
 
 	for _, peer := range peers {
+		if peer.(*remoteNode).mode == clusterModePASSIVE {
+			continue
+		}
 		node.getRequestChan <- &getRequestDataWrapper{r: peer.(*remoteNode), g: reqData}
 	}
 
@@ -379,11 +424,16 @@ func (node *ClusteredBigCache) Delete(key string) error {
 	}
 
 	//delete locally
-	node.cache.Delete(key)
+	if node.mode == clusterModeACTIVE {
+		node.cache.Delete(key)
+	}
 
 	peers := node.remoteNodes.Values()
 	//just send the delete message to everyone
 	for x := 0; x < len(peers); x++ {
+		if peers[x].(*remoteNode).mode == clusterModePASSIVE {
+			continue
+		}
 		node.replicationChan <- &replicationMsg{r:peers[x].(*remoteNode), m: &message.DeleteMessage{Key: key}}
 	}
 
