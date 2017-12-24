@@ -203,6 +203,12 @@ type AppLogger interface {
 You could easily just wrap any logger within a `struct` and provide this interface method for that struct and simple
 delegate calls to the underlining logger.
 
+### Using Passive client
+Passive client are nodes in the clusteredBigCache network that do not store any data locally but functions all the same 
+like every other node. To create a passive client you simply call `clusteredBigCache.NewPassiveClient("localhost:9090", 2040, nil)`
+This will connect to an existing cluster at address *localhost:9090* and join the cluster. Every other function can be performed
+on the returned object.  
+
 ##### credits
 Core cache system from [bigcache](https://github.com/allegro/bigcache)
 

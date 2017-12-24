@@ -413,6 +413,7 @@ func (node *ClusteredBigCache) Get(key string, timeout time.Duration) ([]byte, e
 	return replyData.data, nil
 }
 
+//delete a key from the cluster
 func (node *ClusteredBigCache) Delete(key string) error {
 
 	if node.state != clusterStateStarted {
