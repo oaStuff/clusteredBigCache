@@ -72,7 +72,7 @@ func main() {
 ##### Explanation:
 
 The above application captures data from the keyboard and stores them inside clusteredBigCache
-start with keys 'key_1', 'key_2'...'key_n'. As the user types and presses the enter key the data is stored in 
+starting with keys 'key_1', 'key_2'...'key_n'. As the user types and presses the enter key the data is stored in
 the cache.
 
 `cache := clusteredBigCache.New(clusteredBigCache.DefaultClusterConfig(), nil)`
@@ -166,7 +166,7 @@ After `cache.Start()` is called the library tries to connect to the specified IP
 When successfully connected, it create a cluster of applications using clusteredBigCache as a single cache. ie all applications connected will see every value 
 every application sets in the cache.
 
-####Sample way to parse config in an app
+#### Sample way to parse config in an app
 
 ```go
     join := flag.String("join", "", "ipAddr:port number of remote server")
@@ -187,7 +187,7 @@ Your application could pass parameters to it in any form and make use of them in
 above sample just only catered for `join` and `localport`. If you want network connections between machine to be reconnected
 in the event of a disconnection, you will have to set `config.ReconnectOnDisconnect = true`.
 
-####Logging within the library
+#### Logging within the library
 
 clusteredBigCache take a second parameter is its New() function for logging.
 This function expects an interface of 
@@ -202,6 +202,11 @@ type AppLogger interface {
 
 You could easily just wrap any logger within a `struct` and provide this interface method for that struct and simple
 delegate calls to the underlining logger.
+
+##### credits
+Core cache system from [bigcache](https://github.com/allegro/bigcache)
+
+Data structures from [emirpasic](https://github.com/emirpasic/gods)
 
 
 
