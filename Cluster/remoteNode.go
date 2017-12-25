@@ -478,12 +478,6 @@ func (r *remoteNode) handleSyncResponse(msg *message.NodeWireMessage) {
 
 func (r *remoteNode) getData(reqData *getRequestData)  {
 	randStr := reqData.randStr
-	if r == nil {
-		fmt.Printf("r is nil for '%s\n'", r.config.Id)
-	}
-	if r.pendingGet == nil {
-		fmt.Printf("pendingGet is nil for '%s' \n", r.config.Id)
-	}
 	r.pendingGet.Store(reqData.key + randStr, reqData)
 	r.sendMessage(&message.GetReqMessage{Key: reqData.key, PendingKey: reqData.key + randStr})
 }
@@ -493,8 +487,6 @@ func (r *remoteNode) handleGetRequest(msg *message.NodeWireMessage) {
 	reqMsg.DeSerialize(msg)
 	data, _ := r.parentNode.cache.Get(reqMsg.Key)
 	r.sendMessage(&message.GetRspMessage{PendingKey: reqMsg.PendingKey, Data: data})
-
-
 }
 
 
