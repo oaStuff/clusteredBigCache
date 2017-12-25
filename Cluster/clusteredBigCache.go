@@ -170,7 +170,7 @@ func (node *ClusteredBigCache) Start() error {
 	}
 
 	node.state = clusterStateStarted
-
+	time.Sleep(time.Millisecond * 200) //allow things to start up
 	return nil
 }
 
@@ -375,7 +375,6 @@ func (node *ClusteredBigCache) Put(key string, data []byte, duration time.Durati
 
 //gets the data from the cluster
 func (node *ClusteredBigCache) Get(key string, timeout time.Duration) ([]byte, error) {
-
 	if node.state != clusterStateStarted {
 		return nil, ErrNotStarted
 	}
