@@ -375,19 +375,19 @@ func (r *remoteNode) handleVerify(msg *message.NodeWireMessage) {
 	verifyMsgRsp := message.VerifyMessage{}
 	verifyMsgRsp.DeSerialize(msg)
 
+	r.config.Id = verifyMsgRsp.Id
+	r.config.ServicePort = verifyMsgRsp.ServicePort
+	r.mode = verifyMsgRsp.Mode
+
 	//check if connecting node and this node are both in passive mode
 	if verifyMsgRsp.Mode == clusterModePASSIVE {
 		if r.parentNode.mode == clusterModePASSIVE {  //passive nodes are not allowed to connect to each other
-			utils.Warn(r.logger, fmt.Sprintf("node '%s' and '%s' are both client nodes shuting down the connection", r.config.Id, verifyMsgRsp.Id))
+			utils.Warn(r.logger, fmt.Sprintf("node '%s' and '%s' are both client nodes shuting down the connection", r.parentNode.config.Id, verifyMsgRsp.Id))
 			r.shutDown()
 			return
 		}
 	}
 
-
-	r.config.Id = verifyMsgRsp.Id
-	r.config.ServicePort = verifyMsgRsp.ServicePort
-	r.mode = verifyMsgRsp.Mode
 	if !r.parentNode.eventVerifyRemoteNode(r) { //seek parent's node approval on this
 		utils.Warn(r.logger, fmt.Sprintf("node already has remote node '%s' so shutdown new connection", r.config.Id))
 		r.shutDown()
