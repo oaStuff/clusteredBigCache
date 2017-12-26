@@ -389,6 +389,9 @@ func (node *ClusteredBigCache) Get(key string, timeout time.Duration) ([]byte, e
 
 	//we did not get the data locally so lets check the cluster
 	peers := node.getRemoteNodes()
+	if len(peers) < 1 {
+		return nil, ErrNotFound
+	}
 	replyC := make(chan *getReplyData)
 	reqData := &getRequestData{key: key, randStr: utils.GenerateNodeId(8),
 									replyChan: replyC, done: make(chan struct{})}
