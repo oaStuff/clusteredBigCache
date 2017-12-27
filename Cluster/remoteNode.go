@@ -382,7 +382,7 @@ func (r *remoteNode) handleVerify(msg *message.NodeWireMessage) {
 	//check if connecting node and this node are both in passive mode
 	if verifyMsgRsp.Mode == clusterModePASSIVE {
 		if r.parentNode.mode == clusterModePASSIVE {  //passive nodes are not allowed to connect to each other
-			utils.Warn(r.logger, fmt.Sprintf("node '%s' and '%s' are both client nodes shuting down the connection", r.parentNode.config.Id, verifyMsgRsp.Id))
+			utils.Warn(r.logger, fmt.Sprintf("node '%s' and '%s' are both passive nodes, shuting down the connection", r.parentNode.config.Id, verifyMsgRsp.Id))
 			r.shutDown()
 			return
 		}
@@ -394,7 +394,7 @@ func (r *remoteNode) handleVerify(msg *message.NodeWireMessage) {
 		return
 	}
 
-	if verifyMsgRsp.Mode == clusterModePASSIVE { //if the node is a client node dont reconnect on disconnect
+	if verifyMsgRsp.Mode == clusterModePASSIVE { //if the node is a passive node dont reconnect on disconnect
 		r.config.ReconnectOnDisconnect = false
 	}
 
