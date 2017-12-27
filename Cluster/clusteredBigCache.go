@@ -29,6 +29,7 @@ const (
 var (
 	ErrNotEnoughReplica		=	errors.New("not enough replica")
 	ErrNotFound				= 	errors.New("data not found")
+	ErrTimedOut				= 	errors.New("not found as a result of timing out")
 	ErrNotStarted			=	errors.New("node not started, call Start()")
 )
 
@@ -408,7 +409,7 @@ func (node *ClusteredBigCache) Get(key string, timeout time.Duration) ([]byte, e
 	select {
 	case replyData = <-replyC:
 	case <-time.After(timeout):
-		return nil, ErrNotFound
+		return nil, ErrTimedOut
 	}
 
 	close(reqData.done)
