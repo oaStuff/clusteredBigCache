@@ -353,7 +353,7 @@ func (node *ClusteredBigCache) Put(key string, data []byte, duration time.Durati
 			return err
 		}
 	} else if node.mode == clusterModePASSIVE {
-		expiryTime := uint64(time.Now().Unix())
+		expiryTime = uint64(time.Now().Unix())
 		if duration != time.Duration(bigcache.NO_EXPIRY) {
 			expiryTime += uint64(duration.Seconds())
 		} else {
