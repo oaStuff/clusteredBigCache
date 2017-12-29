@@ -70,7 +70,8 @@ type ClusteredBigCache struct {
 //create a new local node
 func New(config *ClusteredBigCacheConfig, logger utils.AppLogger) *ClusteredBigCache {
 
-	cache, err := bigcache.NewBigCache(bigcache.DefaultConfig())
+	cfg := bigcache.DefaultConfig()
+	cache, err := bigcache.NewBigCache(cfg)
 	if err != nil {
 		panic(err)
 	}
