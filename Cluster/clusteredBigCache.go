@@ -442,6 +442,15 @@ func (node *ClusteredBigCache) Delete(key string) error {
 	return nil
 }
 
+func (node *ClusteredBigCache) Statistics() string {
+	if node.mode == clusterModeACTIVE {
+		stats := node.cache.Stats()
+		return fmt.Sprintf("%q", stats)
+	}
+
+	return "No stats for passive mode"
+}
+
 //a goroutine to send get request to members of the cluster
 func (node *ClusteredBigCache) requestSenderForGET() {
 	for value := range node.getRequestChan {
