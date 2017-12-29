@@ -77,7 +77,6 @@ func (q *BytesQueue) Push(data []byte) (int, error) {
 	}
 
 	index := q.tail
-
 	q.push(data, dataLen)
 
 	return index, nil
@@ -207,4 +206,18 @@ func (q *BytesQueue) availableSpaceBeforeHead() int {
 		return q.head - leftMarginIndex - minimumEmptyBlobSize
 	}
 	return q.head - q.tail - minimumEmptyBlobSize
+}
+
+func (q *BytesQueue) DeleteAndCompact(index int) (int, error) {
+	_, size, err := q.peek(index)
+	if err != nil {
+		return -1, err
+	}
+
+	copy(q.array[index:], q.array[index + headerEntrySize + size : q.tail])
+	q.tail = q.tail - (headerEntrySize + size)
+	q.rightMargin = q.tail
+
+
+	return headerEntrySize + size, nil
 }

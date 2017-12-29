@@ -3,7 +3,6 @@ package bigcache
 import (
 	"sync"
 	"sync/atomic"
-
 	"github.com/oaStuff/clusteredBigCache/bigcache/queue"
 	"time"
 )
@@ -73,6 +72,7 @@ func (s *cacheShard) set(key string, hashedKey uint64, entry []byte, duration ti
 			timestamp := readTimestampFromEntry(previousEntry)
 			s.ttlTable.remove(timestamp, key)
 			resetKeyFromEntry(previousEntry)
+			s.deleteAndCompact(previousIndex)
 		}
 	}
 
@@ -126,6 +126,10 @@ func (s *cacheShard) __del(key string, hashedKey uint64, eviction bool) error {
 		timestamp := readTimestampFromEntry(wrappedEntry)
 		s.ttlTable.remove(timestamp, key)
 	}
+
+	s.lock.Lock()
+	s.deleteAndCompact(itemIndex)
+	s.lock.Unlock()
 	s.delhit()
 	return nil
 }
@@ -222,6 +226,19 @@ func (s *cacheShard) delmiss() {
 
 func (s *cacheShard) collision() {
 	atomic.AddInt64(&s.stats.Collisions, 1)
+}
+
+func (s *cacheShard) deleteAndCompact(index uint32) {
+	diff, err := s.entries.DeleteAndCompact(int(index))
+	if err != nil {
+
+	}
+
+	for i,_ := range s.hashmap {
+		if s.hashmap[i] > index {
+			s.hashmap[i] -= uint32(diff)
+		}
+	}
 }
 
 func initNewShard(config Config, callback onRemoveCallback, clock clock, num uint64) *cacheShard {
