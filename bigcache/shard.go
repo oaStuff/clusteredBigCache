@@ -10,9 +10,15 @@ import (
 
 const NO_EXPIRY uint64 = 0
 
+type entry struct {
+	key 		string
+	data 		[]byte
+	expirytime 	uint64
+}
+
 type cacheShard struct {
 	sharedNum   uint64
-	hashmap     map[uint64]uint32
+	hashmap     map[uint64]*entry
 	entries     queue.BytesQueue
 	lock        sync.RWMutex
 	entryBuffer []byte
@@ -31,23 +37,18 @@ type onRemoveCallback func(wrappedEntry []byte)
 
 func (s *cacheShard) get(key string, hashedKey uint64) ([]byte, error) {
 	s.lock.RLock()
-	itemIndex := s.hashmap[hashedKey]
+	entry := s.hashmap[hashedKey]
 
-	if itemIndex == 0 {
+	if entry == nil {
 		s.lock.RUnlock()
 		s.miss()
 		return nil, notFound(key)
 	}
 
-	wrappedEntry, err := s.entries.Get(int(itemIndex))
-	if err != nil {
-		s.lock.RUnlock()
-		s.miss()
-		return nil, err
-	}
-	if entryKey := readKeyFromEntry(wrappedEntry); key != entryKey {
+
+	if key != entry.key {
 		if s.isVerbose {
-			s.logger.Printf("Collision detected. Both %q and %q have the same hash %x", key, entryKey, hashedKey)
+			s.logger.Printf("Collision detected. Both %q and %q have the same hash %x", key, entry.key, hashedKey)
 		}
 		s.lock.RUnlock()
 		s.collision()
@@ -55,10 +56,10 @@ func (s *cacheShard) get(key string, hashedKey uint64) ([]byte, error) {
 	}
 	s.lock.RUnlock()
 	s.hit()
-	return readEntry(wrappedEntry), nil
+	return entry.data, nil
 }
 
-func (s *cacheShard) set(key string, hashedKey uint64, entry []byte, duration time.Duration) (uint64, error) {
+func (s *cacheShard) set(key string, hashedKey uint64, data []byte, duration time.Duration) (uint64, error) {
 	expiryTimestamp := uint64(s.clock.epoch())
 	if duration != time.Duration(NO_EXPIRY) {
 		expiryTimestamp += uint64(duration.Seconds())
@@ -68,27 +69,24 @@ func (s *cacheShard) set(key string, hashedKey uint64, entry []byte, duration ti
 
 	s.lock.Lock()
 
-	if previousIndex := s.hashmap[hashedKey]; previousIndex != 0 {
-		if previousEntry, err := s.entries.Get(int(previousIndex)); err == nil {
-			timestamp := readTimestampFromEntry(previousEntry)
-			s.ttlTable.remove(timestamp, key)
-			resetKeyFromEntry(previousEntry)
-		}
+	if previous := s.hashmap[hashedKey]; previous != nil {
+		timestamp := previous.expirytime
+		s.ttlTable.remove(timestamp, key)
 	}
 
-	w := wrapEntry(expiryTimestamp, hashedKey, key, entry, &s.entryBuffer)
+	w := &entry{}
+	w.data = make([]byte, len(data))
+	copy(w.data, data)
+	w.expirytime = expiryTimestamp
+	w.key = key
 
-	var err error
-	if index, err := s.entries.Push(w); err == nil {
-		s.hashmap[hashedKey] = uint32(index)
-		s.lock.Unlock()
-		if duration != time.Duration(NO_EXPIRY) {
-			s.ttlTable.put(expiryTimestamp, key)
-		}
-		return expiryTimestamp, nil
+	s.hashmap[hashedKey] = w
+	s.lock.Unlock()
+	if duration != time.Duration(NO_EXPIRY) {
+		s.ttlTable.put(expiryTimestamp, key)
 	}
 
-	return 0, err
+	return expiryTimestamp, nil
 }
 
 func (s *cacheShard) evictDel(key string, hashedKey uint64) error {
@@ -103,27 +101,18 @@ func (s *cacheShard) del(key string, hashedKey uint64) error {
 
 func (s *cacheShard) __del(key string, hashedKey uint64, eviction bool) error {
 	s.lock.RLock()
-	itemIndex := s.hashmap[hashedKey]
+	entry := s.hashmap[hashedKey]
 
-	if itemIndex == 0 {
+	if entry == nil {
 		s.lock.RUnlock()
 		s.delmiss()
 		return notFound(key)
 	}
 
-	wrappedEntry, err := s.entries.Get(int(itemIndex))
-	if err != nil {
-		s.lock.RUnlock()
-		s.delmiss()
-		return err
-	}
-
 	delete(s.hashmap, hashedKey)
-	s.onRemove(wrappedEntry)
-	resetKeyFromEntry(wrappedEntry)
 	s.lock.RUnlock()
 	if !eviction {
-		timestamp := readTimestampFromEntry(wrappedEntry)
+		timestamp := entry.expirytime
 		s.ttlTable.remove(timestamp, key)
 	}
 	s.delhit()
@@ -160,17 +149,18 @@ func (s *cacheShard) getEntry(index int) ([]byte, error) {
 }
 
 func (s *cacheShard) copyKeys() (keys []uint32, next int) {
-	keys = make([]uint32, len(s.hashmap))
-
-	s.lock.RLock()
-
-	for _, index := range s.hashmap {
-		keys[next] = index
-		next++
-	}
-
-	s.lock.RUnlock()
-	return keys, next
+	panic("copyKeys not yet implemented")
+	//keys = make([]uint32, len(s.hashmap))
+	//
+	//s.lock.RLock()
+	//
+	//for _, index := range s.hashmap {
+	//	keys[next] = index
+	//	next++
+	//}
+	//
+	//s.lock.RUnlock()
+	//return keys, next
 }
 
 func (s *cacheShard) removeOldestEntry() error {
@@ -186,7 +176,7 @@ func (s *cacheShard) removeOldestEntry() error {
 
 func (s *cacheShard) reset(config Config) {
 	s.lock.Lock()
-	s.hashmap = make(map[uint64]uint32, config.initialShardSize())
+	s.hashmap = make(map[uint64]*entry, config.initialShardSize())
 	s.entryBuffer = make([]byte, config.MaxEntrySize+headersSizeInBytes)
 	s.entries.Reset()
 	s.ttlTable.reset()
@@ -226,7 +216,7 @@ func (s *cacheShard) collision() {
 
 func initNewShard(config Config, callback onRemoveCallback, clock clock, num uint64) *cacheShard {
 	shard := &cacheShard{
-		hashmap:     make(map[uint64]uint32, config.initialShardSize()),
+		hashmap:     make(map[uint64]*entry, config.initialShardSize()),
 		entries:     *queue.NewBytesQueue(config.initialShardSize()*config.MaxEntrySize, config.maximumShardSize(), config.Verbose),
 		entryBuffer: make([]byte, config.MaxEntrySize+headersSizeInBytes),
 		onRemove:    callback,
