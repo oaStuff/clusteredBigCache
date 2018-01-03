@@ -102,18 +102,18 @@ func (s *cacheShard) del(key string, hashedKey uint64) error {
 }
 
 func (s *cacheShard) __del(key string, hashedKey uint64, eviction bool) error {
-	s.lock.RLock()
+	s.lock.Lock()
 	itemIndex := s.hashmap[hashedKey]
 
 	if itemIndex == 0 {
-		s.lock.RUnlock()
+		s.lock.Unlock()
 		s.delmiss()
 		return notFound(key)
 	}
 
 	wrappedEntry, err := s.entries.Get(int(itemIndex))
 	if err != nil {
-		s.lock.RUnlock()
+		s.lock.Unlock()
 		s.delmiss()
 		return err
 	}
@@ -121,15 +121,13 @@ func (s *cacheShard) __del(key string, hashedKey uint64, eviction bool) error {
 	delete(s.hashmap, hashedKey)
 	s.onRemove(wrappedEntry)
 	resetKeyFromEntry(wrappedEntry)
-	s.lock.RUnlock()
+	s.deleteAndCompact(itemIndex)
+	s.lock.Unlock()
 	if !eviction {
 		timestamp := readTimestampFromEntry(wrappedEntry)
 		s.ttlTable.remove(timestamp, key)
 	}
 
-	s.lock.Lock()
-	s.deleteAndCompact(itemIndex)
-	s.lock.Unlock()
 	s.delhit()
 	return nil
 }
@@ -235,8 +233,9 @@ func (s *cacheShard) deleteAndCompact(index uint32) {
 	}
 
 	for i,_ := range s.hashmap {
-		if s.hashmap[i] > index {
-			s.hashmap[i] -= uint32(diff)
+		idx := s.hashmap[i]
+		if idx > index {
+			s.hashmap[i] = idx - uint32(diff)
 		}
 	}
 }
