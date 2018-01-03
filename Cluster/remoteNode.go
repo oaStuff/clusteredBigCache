@@ -88,7 +88,7 @@ func newRemoteNode(config *remoteNodeConfig, parent *ClusteredBigCache, logger u
 	checkConfig(logger, config)
 	return &remoteNode{
 		config:        config,
-		msgQueue:      make(chan *message.NodeWireMessage, 1024),
+		msgQueue:      make(chan *message.NodeWireMessage, 1024 * 4),
 		done:          make(chan struct{}, 2),
 		state:         nodeStateDisconnected,
 		stateLock:     sync.Mutex{},
@@ -227,10 +227,10 @@ func (r *remoteNode) connect() error {
 	return nil
 }
 
-//this is a goroutine dedicated in reading data fromt the network
-//it does this by reading a 4bytes header which is
-//	byte 1 & 2 == length of data
-//	byte 3 & 4 == message code
+//this is a goroutine dedicated in reading data from the network
+//it does this by reading a 6bytes header which is
+//	byte 1 - 4 == length of data
+//	byte 5 & 6 == message code
 //	the rest of the data based on length is the message body
 func (r *remoteNode) networkConsumer() {
 
@@ -315,6 +315,7 @@ func (r *remoteNode) shutDown() {
 
 //just queue the message in a channel
 func (r *remoteNode) queueMessage(msg *message.NodeWireMessage) {
+	//defer func() {recover()}()
 
 	if r.state == nodeStateHandshake { //when in the handshake state only accept MsgVERIFY and MsgVERIFYOK messages
 		code := msg.Code
@@ -325,7 +326,11 @@ func (r *remoteNode) queueMessage(msg *message.NodeWireMessage) {
 	}
 
 	if r.state != nodeStateDisconnected {
-		r.msgQueue <- msg
+		select {
+		case <-r.done:
+		case r.msgQueue <- msg:
+		}
+
 		//we could modify handleMessage() to run async as in go handleMessage(msg)
 		//instead of queuing the message
 	}

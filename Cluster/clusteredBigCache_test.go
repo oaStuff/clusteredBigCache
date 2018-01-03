@@ -107,7 +107,7 @@ func TestPutData(t *testing.T)  {
 
 func TestPutDataWithPassiveClient(t *testing.T)  {
 	node1 := New(&ClusteredBigCacheConfig{Join: false, LocalPort: 1999, ConnectRetries: 2}, nil)
-	node2 := NewPassiveClient("localhost:1999", 1998, nil)
+	node2 := NewPassiveClient("localhost:1999", 1998, 5, 3, 10, nil)
 
 
 	node1.Start()
@@ -140,8 +140,8 @@ func TestPassiveMode(t *testing.T)  {
 
 	node1 := New(&ClusteredBigCacheConfig{Join: false, LocalPort: 1999, ConnectRetries: 2}, nil)
 
-	client1 := NewPassiveClient("localhost:1999", 1997, nil)
-	client2 := NewPassiveClient("localhost:1997", 1996, nil)
+	client1 := NewPassiveClient("localhost:1999", 1997, 5, 3, 10,nil)
+	client2 := NewPassiveClient("localhost:1997", 1996, 5, 3, 10,nil)
 
 
 	node1.Start()
