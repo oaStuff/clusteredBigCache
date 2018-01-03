@@ -315,7 +315,7 @@ func (r *remoteNode) shutDown() {
 
 //just queue the message in a channel
 func (r *remoteNode) queueMessage(msg *message.NodeWireMessage) {
-	//defer func() {recover()}()
+	defer func() {recover()}()
 
 	if r.state == nodeStateHandshake { //when in the handshake state only accept MsgVERIFY and MsgVERIFYOK messages
 		code := msg.Code
