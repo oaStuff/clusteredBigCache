@@ -49,6 +49,9 @@ type ClusteredBigCacheConfig struct {
 	DebugMode		  bool	`json:"debug_mode"`
 	DebugPort 		  int 	`json:"debug_port"`
 	ReconnectOnDisconnect	bool	`json:"reconnect_on_disconnect"`
+	PingFailureThreshHold int32  `json:"ping_failure_thresh_hold"`
+	PingInterval          int    `json:"ping_interval"`
+	PingTimeout           int    `json:"ping_timeout"`
 }
 
 //Cluster definition
@@ -84,7 +87,7 @@ func New(config *ClusteredBigCacheConfig, logger utils.AppLogger) *ClusteredBigC
 		joinQueue:   make(chan *message.ProposedPeer, 512),
 		pendingConn: sync.Map{},
 		nodeIndex: 	 0,
-		getRequestChan:	 make(chan *getRequestDataWrapper, 1024),
+		getRequestChan:	 make(chan *getRequestDataWrapper, 1024 * 4),
 		replicationChan: make(chan *replicationMsg, 4096),
 		state: 			clusterStateStarting,
 		mode: 			clusterModeACTIVE,
@@ -92,13 +95,16 @@ func New(config *ClusteredBigCacheConfig, logger utils.AppLogger) *ClusteredBigC
 }
 
 //create a new local node that does not store any data locally
-func NewPassiveClient(serverEndpoint string, localPort int, logger utils.AppLogger) *ClusteredBigCache {
+func NewPassiveClient(serverEndpoint string, localPort, pingInterval, pingTimeout int, pingFailureThreashold int32, logger utils.AppLogger) *ClusteredBigCache {
 
 	config := DefaultClusterConfig()
 	config.Join = true
 	config.JoinIp = serverEndpoint
 	config.ReconnectOnDisconnect = true
 	config.LocalPort = localPort
+	config.PingInterval = pingInterval
+	config.PingTimeout = pingTimeout
+	config.PingFailureThreshHold = pingFailureThreashold
 
 	return &ClusteredBigCache{
 		config:      config,
@@ -204,7 +210,11 @@ func (node *ClusteredBigCache) joinCluster() error {
 
 	remoteNode := newRemoteNode(&remoteNodeConfig{IpAddress: node.config.JoinIp,
 												ConnectRetries: node.config.ConnectRetries,
-												Sync: true, ReconnectOnDisconnect: node.config.ReconnectOnDisconnect}, node, node.logger)
+												Sync: true, ReconnectOnDisconnect: node.config.ReconnectOnDisconnect,
+												PingInterval: node.config.PingInterval,
+												PingTimeout: node.config.PingTimeout,
+												PingFailureThreshHold: node.config.PingFailureThreshHold},
+												node, node.logger)
 	remoteNode.join()
 	return nil
 }
@@ -276,7 +286,11 @@ func (node *ClusteredBigCache) listen() {
 		tcpConn := conn.(*net.TCPConn)
 		remoteNode := newRemoteNode(&remoteNodeConfig{IpAddress: tcpConn.RemoteAddr().String(),
 														ConnectRetries: node.config.ConnectRetries,
-														Sync: false, ReconnectOnDisconnect: false}, node, node.logger)
+														Sync: false, ReconnectOnDisconnect: false,
+														PingInterval: node.config.PingInterval,
+														PingTimeout: node.config.PingTimeout,
+														PingFailureThreshHold: node.config.PingFailureThreshHold},
+														node, node.logger)
 		remoteNode.setState(nodeStateHandshake)
 		remoteNode.setConnection(comms.WrapConnection(tcpConn))
 		utils.Info(node.logger, fmt.Sprintf("new connection from remote '%s'", tcpConn.RemoteAddr().String()))
