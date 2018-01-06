@@ -172,6 +172,13 @@ func (list *freeList) find(size int) int {
 		if v, found := list.findInSizeList(idx, size, buckSize); found {
 			return v
 		}
+		if idx < 6 {
+			buckSize *= 2
+		}else {
+			buckSize = 4097
+		}
+
+
 	}
 
 	return -1

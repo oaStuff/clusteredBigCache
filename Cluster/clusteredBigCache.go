@@ -250,6 +250,7 @@ func (node *ClusteredBigCache) getRemoteNodes() []interface{} {
 func (node *ClusteredBigCache) eventVerifyRemoteNode(remoteNode *remoteNode) bool {
 
 	if node.remoteNodes.Contains(remoteNode.config.Id) {
+		utils.Warn(node.logger, "clusterBigCache already contains " + remoteNode.config.Id)
 		return false
 	}
 

@@ -229,5 +229,6 @@ func (q *BytesQueue) Delete(index int) error {
 	}
 
 	q.freelist.add(index, size + headerEntrySize)
+	q.count--
 	return nil
 }

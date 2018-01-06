@@ -126,7 +126,12 @@ func (r *remoteNode) startPinging() {
 			case <-r.pingTimer.C:
 				r.sendMessage(&message.PingMessage{})
 				atomic.AddUint64(&r.metrics.pingSent, 1)
-				r.pingTimeout.Stop()
+				if !r.pingTimeout.Stop() {
+					select {
+					case <-r.pingTimeout.C:
+					default:
+					}
+				}
 				r.pingTimeout.Reset(time.Second * time.Duration(r.config.PingTimeout))
 			case <-r.done: //we have this so that the goroutine would not linger after this node disconnects because
 				done = true //of the blocking channel in the above case statement
@@ -273,6 +278,11 @@ func (r *remoteNode) networkConsumer() {
 // bytes 3 & 4 == message code
 // bytes 5 upwards == message content
 func (r *remoteNode) sendMessage(m message.NodeMessage) {
+
+	if r.state == nodeStateDisconnected {
+		return
+	}
+
 	msg := m.Serialize()
 	data := make([]byte, 6 + len(msg.Data))	// 6 ==> 4bytes for length of message, 2bytes for message code
 	binary.LittleEndian.PutUint32(data, uint32(len(msg.Data) + 2)) //the 2 is for the message code
@@ -433,13 +443,20 @@ func (r *remoteNode) handlePing() {
 	atomic.AddUint64(&r.metrics.pingRecieved, 1)
 	r.sendMessage(&message.PongMessage{})
 	atomic.AddUint64(&r.metrics.pongSent, 1)
+	fmt.Println("ping recieved...", r.config.Id)
 }
 
 //handle a pong message from the remote node, reset flags
 func (r *remoteNode) handlePong() {
 	atomic.AddUint64(&r.metrics.pongRecieved, 1)
-	r.pingTimeout.Stop()                 //stop the timer since we got a response
+	if !r.pingTimeout.Stop() { //stop the timer since we got a response
+		select {
+		case <-r.pingTimeout.C:
+		default:
+		}
+	}
 	atomic.StoreInt32(&r.pingFailure, 0) //reset failure counter since we got a response
+	fmt.Println("PONG recieved...", r.config.Id)
 }
 
 //build and send a sync message
