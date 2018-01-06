@@ -72,7 +72,7 @@ func (s *cacheShard) set(key string, hashedKey uint64, entry []byte, duration ti
 			timestamp := readTimestampFromEntry(previousEntry)
 			s.ttlTable.remove(timestamp, key)
 			resetKeyFromEntry(previousEntry)
-			s.deleteAndCompact(previousIndex)
+			s.delete(previousIndex)
 		}
 	}
 
@@ -121,7 +121,7 @@ func (s *cacheShard) __del(key string, hashedKey uint64, eviction bool) error {
 	delete(s.hashmap, hashedKey)
 	s.onRemove(wrappedEntry)
 	resetKeyFromEntry(wrappedEntry)
-	s.deleteAndCompact(itemIndex)
+	s.delete(itemIndex)
 	s.lock.Unlock()
 	if !eviction {
 		timestamp := readTimestampFromEntry(wrappedEntry)
@@ -226,19 +226,36 @@ func (s *cacheShard) collision() {
 	atomic.AddInt64(&s.stats.Collisions, 1)
 }
 
-func (s *cacheShard) deleteAndCompact(index uint32) {
-	diff, err := s.entries.DeleteAndCompact(int(index))
-	if err != nil {
-
-	}
-
-	for i,_ := range s.hashmap {
-		idx := s.hashmap[i]
-		if idx > index {
-			s.hashmap[i] = idx - uint32(diff)
-		}
-	}
+func (s *cacheShard) delete(index uint32) {
+	s.entries.Delete(int(index))
 }
+
+//func (s *cacheShard) Delete(index uint32) {
+//	diff, _ := s.entries.Delete(int(index))
+//
+//	for i,_ := range s.hashmap {
+//		idx := s.hashmap[i]
+//		if idx > index {
+//			s.hashmap[i] = idx - uint32(diff)
+//		}
+//	}
+//
+//	s.fList.adjustIndexes(index, diff)
+//}
+//func (s *cacheShard) doCompact() {
+//	for range time.NewTicker(time.Second * 10).C {
+//		s.lock.Lock()
+//		for x := 0; x < 512; x++ {
+//			index, err := s.fList.Pop()
+//			if err != nil {
+//				break
+//			}
+//			s.Delete(uint32(index))
+//		}
+//		s.lock.Unlock()
+//	}
+//}
+
 
 func initNewShard(config Config, callback onRemoveCallback, clock clock, num uint64) *cacheShard {
 	shard := &cacheShard{
@@ -255,6 +272,8 @@ func initNewShard(config Config, callback onRemoveCallback, clock clock, num uin
 	}
 
 	shard.ttlTable = newTtlManager(shard, config.Hasher)
+
+	//go shard.doCompact()
 
 	return shard
 }
