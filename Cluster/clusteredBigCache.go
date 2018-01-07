@@ -95,9 +95,10 @@ func New(config *ClusteredBigCacheConfig, logger utils.AppLogger) *ClusteredBigC
 }
 
 //create a new local node that does not store any data locally
-func NewPassiveClient(serverEndpoint string, localPort, pingInterval, pingTimeout int, pingFailureThreashold int32, logger utils.AppLogger) *ClusteredBigCache {
+func NewPassiveClient(id string, serverEndpoint string, localPort, pingInterval, pingTimeout int, pingFailureThreashold int32, logger utils.AppLogger) *ClusteredBigCache {
 
 	config := DefaultClusterConfig()
+	config.Id = id
 	config.Join = true
 	config.JoinIp = serverEndpoint
 	config.ReconnectOnDisconnect = true

@@ -60,6 +60,7 @@ type remoteNode struct {
 	pingFailure   int32        //count the number of pings without response
 	pendingGet	  *sync.Map
 	mode 		   byte
+	wg 			   *sync.WaitGroup
 }
 
 
@@ -96,6 +97,7 @@ func newRemoteNode(config *remoteNodeConfig, parent *ClusteredBigCache, logger u
 		logger:        logger,
 		metrics: 		&nodeMetrics{},
 		pendingGet: 	&sync.Map{},
+		wg: 		    &sync.WaitGroup{},
 	}
 }
 
@@ -121,6 +123,7 @@ func (r *remoteNode) startPinging() {
 
 	go func() {
 		done := false
+		r.wg.Add(1)
 		for {
 			select {
 			case <-r.pingTimer.C:
@@ -143,11 +146,13 @@ func (r *remoteNode) startPinging() {
 		}
 
 		utils.Info(r.logger, fmt.Sprintf("shutting down ping timer goroutine for '%s'", r.config.Id))
+		r.wg.Done()
 	}()
 
 	go func() {
 		done := false
 		fault := false
+		r.wg.Add(1)
 		for {
 			select {
 			case <-r.pingTimeout.C:
@@ -172,6 +177,7 @@ func (r *remoteNode) startPinging() {
 			}
 		}
 
+		r.wg.Done()
 		if fault {
 			//the remote node is assumed to be 'dead' since it has not responded to recent ping request
 			utils.Warn(r.logger, fmt.Sprintf("shutting down connection to remote node '%s' due to no ping response", r.config.Id))
@@ -239,6 +245,7 @@ func (r *remoteNode) connect() error {
 //	the rest of the data based on length is the message body
 func (r *remoteNode) networkConsumer() {
 
+
 	for (r.state == nodeStateConnected) || (r.state == nodeStateHandshake) {
 
 		header, err := r.connection.ReadData(6, 0) //read 6 byte header
@@ -269,6 +276,7 @@ func (r *remoteNode) networkConsumer() {
 		}
 		r.queueMessage(&message.NodeWireMessage{Code: msgCode, Data: data}) //queue message to be processed
 	}
+	utils.Info(r.logger, fmt.Sprintf("network consumer loop terminated... %s", r.config.Id))
 
 }
 
@@ -300,14 +308,18 @@ func (r *remoteNode) sendMessage(m message.NodeMessage) {
 
 //bring down the remote node. should not be called from outside networkConsumer()
 func (r *remoteNode) shutDown() {
-	r.stateLock.Lock()
-	defer r.stateLock.Unlock()
 
+	//state change
+	r.stateLock.Lock()
 	if r.state == nodeStateDisconnected {
+		r.stateLock.Unlock()
 		return
 	}
-
 	r.state = nodeStateDisconnected
+	r.stateLock.Unlock()
+
+
+
 	r.parentNode.eventRemoteNodeDisconneced(r)
 	r.connection.Close()
 
@@ -320,6 +332,7 @@ func (r *remoteNode) shutDown() {
 	close(r.done)
 	close(r.msgQueue)
 	r.pendingGet = nil
+	r.wg.Wait()
 	utils.Info(r.logger, fmt.Sprintf("remote node '%s' completely shutdown", r.config.Id))
 }
 
@@ -349,6 +362,7 @@ func (r *remoteNode) queueMessage(msg *message.NodeWireMessage) {
 //message handler
 func (r *remoteNode) handleMessage() {
 
+	r.wg.Add(1)
 	for msg := range r.msgQueue {
 		switch msg.Code {
 		case message.MsgVERIFY:
@@ -375,6 +389,7 @@ func (r *remoteNode) handleMessage() {
 	}
 
 	utils.Info(r.logger, fmt.Sprintf("terminated message handler goroutine for '%s'", r.config.Id))
+	r.wg.Done()
 }
 
 //send a verify messge. this is always the first message to be sent once a connection is established.
