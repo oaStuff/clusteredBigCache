@@ -320,7 +320,7 @@ func (node *ClusteredBigCache) connectToExistingNodes() {
 			continue
 		}
 
-		//if we are already connected to the remote node just exit
+		//if we are already connected to the remote node just continue
 		keys := node.remoteNodes.Keys()
 		if _, ok := keys.Load(value.Id); ok {
 			continue

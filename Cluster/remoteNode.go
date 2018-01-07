@@ -499,6 +499,9 @@ func (r *remoteNode) handleSyncResponse(msg *message.NodeWireMessage) {
 }
 
 func (r *remoteNode) getData(reqData *getRequestData)  {
+	if r.state == nodeStateDisconnected {
+		return
+	}
 	randStr := reqData.randStr
 	r.pendingGet.Store(reqData.key + randStr, reqData)
 	r.sendMessage(&message.GetReqMessage{Key: reqData.key, PendingKey: reqData.key + randStr})
