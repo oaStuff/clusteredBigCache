@@ -87,8 +87,8 @@ func New(config *ClusteredBigCacheConfig, logger utils.AppLogger) *ClusteredBigC
 		joinQueue:   make(chan *message.ProposedPeer, 512),
 		pendingConn: sync.Map{},
 		nodeIndex: 	 0,
-		getRequestChan:	 make(chan *getRequestDataWrapper, 1024 * 4),
-		replicationChan: make(chan *replicationMsg, 4096),
+		getRequestChan:	 make(chan *getRequestDataWrapper, 1024 * 1024),
+		replicationChan: make(chan *replicationMsg, 1024 * 1024),
 		state: 			clusterStateStarting,
 		mode: 			clusterModeACTIVE,
 	}
@@ -190,7 +190,7 @@ func (node *ClusteredBigCache) ShutDown() {
 	for _, v := range node.remoteNodes.Values() {
 		rn := v.(*remoteNode)
 		rn.config.ReconnectOnDisconnect = false
-		rn.shutDown()
+		rn.shutDown("ShutDown()-Parent")
 	}
 
 	close(node.joinQueue)

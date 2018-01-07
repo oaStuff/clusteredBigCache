@@ -41,6 +41,8 @@ func NewConnection(endpoint string, connectionTimeout time.Duration) (*Connectio
 	c.Uid = c.conn.LocalAddr().String()
 	c.Remote = endpoint
 	c.conn.SetKeepAlive(true)
+	//c.conn.SetReadBuffer(1024 * 1024)
+	//c.conn.SetWriteBuffer(1024 * 1024)
 	c.buffReader = bufio.NewReader(c)
 	c.Usable = true
 	c.writeLock = sync.Mutex{}
@@ -55,6 +57,8 @@ func WrapConnection(conn *net.TCPConn) *Connection {
 	c.Uid = c.conn.LocalAddr().String()
 	c.Remote = conn.RemoteAddr().String()
 	c.conn.SetKeepAlive(true)
+	//c.conn.SetReadBuffer(1024 * 1024)
+	//c.conn.SetWriteBuffer(1024 * 1024)
 	c.buffReader = bufio.NewReader(c)
 	c.Usable = true
 	c.writeLock = sync.Mutex{}
