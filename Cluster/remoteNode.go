@@ -289,7 +289,7 @@ func (r *remoteNode) sendMessage(m message.NodeMessage) {
 	binary.LittleEndian.PutUint16(data[4:], msg.Code)
 	copy(data[6:], msg.Data)
 	if err := r.connection.SendData(data); err != nil {
-		utils.Critical(r.logger, "unexpected error while sending data ["+err.Error()+"]")
+		utils.Critical(r.logger, fmt.Sprintf("unexpected error while sending %s data [%s]",message.MsgCodeToString(msg.Code), err))
 		jq := r.parentNode.joinQueue
 		r.shutDown()
 		if r.config.ReconnectOnDisconnect {
