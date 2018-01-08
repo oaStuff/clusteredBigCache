@@ -89,7 +89,7 @@ func newRemoteNode(config *remoteNodeConfig, parent *ClusteredBigCache, logger u
 	checkConfig(logger, config)
 	return &remoteNode{
 		config:        config,
-		msgQueue:      make(chan *message.NodeWireMessage, 1024 * 64),
+		msgQueue:      make(chan *message.NodeWireMessage, CHAN_SIZE),
 		done:          make(chan struct{}, 2),
 		state:         nodeStateDisconnected,
 		stateLock:     sync.Mutex{},
