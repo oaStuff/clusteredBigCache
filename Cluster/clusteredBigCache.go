@@ -26,6 +26,8 @@ const (
 	clusterModePASSIVE
 )
 
+const CHAN_SIZE  = 1024 * 64
+
 var (
 	ErrNotEnoughReplica		=	errors.New("not enough replica")
 	ErrNotFound				= 	errors.New("data not found")
@@ -87,8 +89,8 @@ func New(config *ClusteredBigCacheConfig, logger utils.AppLogger) *ClusteredBigC
 		joinQueue:   make(chan *message.ProposedPeer, 512),
 		pendingConn: sync.Map{},
 		nodeIndex: 	 0,
-		getRequestChan:	 make(chan *getRequestDataWrapper, 1024 * 64),
-		replicationChan: make(chan *replicationMsg, 1024 * 64),
+		getRequestChan:	 make(chan *getRequestDataWrapper, CHAN_SIZE),
+		replicationChan: make(chan *replicationMsg, CHAN_SIZE),
 		state: 			clusterStateStarting,
 		mode: 			clusterModeACTIVE,
 	}
@@ -115,8 +117,8 @@ func NewPassiveClient(id string, serverEndpoint string, localPort, pingInterval,
 		joinQueue:   make(chan *message.ProposedPeer, 512),
 		pendingConn: sync.Map{},
 		nodeIndex: 	 0,
-		getRequestChan:	 make(chan *getRequestDataWrapper, 1024),
-		replicationChan: make(chan *replicationMsg, 4096),
+		getRequestChan:	 make(chan *getRequestDataWrapper, CHAN_SIZE),
+		replicationChan: make(chan *replicationMsg, CHAN_SIZE),
 		state: 			clusterStateStarting,
 		mode: 			clusterModePASSIVE,
 	}
@@ -386,7 +388,6 @@ func (node *ClusteredBigCache) Put(key string, data []byte, duration time.Durati
 		}
 		node.replicationChan <- &replicationMsg{r: peers[x].(*remoteNode),
 			m: &message.PutMessage{Key: key, Data: data, Expiry: expiryTime}}
-
 	}
 
 	return nil
