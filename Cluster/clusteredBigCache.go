@@ -385,7 +385,8 @@ func (node *ClusteredBigCache) Put(key string, data []byte, duration time.Durati
 			continue
 		}
 		node.replicationChan <- &replicationMsg{r: peers[x].(*remoteNode),
-				m: &message.PutMessage{Key: key, Data: data, Expiry: expiryTime}}
+			m: &message.PutMessage{Key: key, Data: data, Expiry: expiryTime}}
+
 
 	}
 
