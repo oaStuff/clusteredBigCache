@@ -31,7 +31,6 @@ var (
 	ErrNotFound				= 	errors.New("data not found")
 	ErrTimedOut				= 	errors.New("not found as a result of timing out")
 	ErrNotStarted			=	errors.New("node not started, call Start()")
-	ErrPutDropped 			= 	errors.New("putting into the cache dropped")
 )
 
 //Cluster configuration
@@ -385,12 +384,8 @@ func (node *ClusteredBigCache) Put(key string, data []byte, duration time.Durati
 		if peers[x].(*remoteNode).mode == clusterModePASSIVE {
 			continue
 		}
-		select {
-		case node.replicationChan <- &replicationMsg{r: peers[x].(*remoteNode),
-			m: &message.PutMessage{Key: key, Data: data, Expiry: expiryTime}}:
-		default:
-			return ErrPutDropped
-		}
+		 node.replicationChan <- &replicationMsg{r: peers[x].(*remoteNode),
+				m: &message.PutMessage{Key: key, Data: data, Expiry: expiryTime}}
 
 	}
 
