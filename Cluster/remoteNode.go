@@ -89,7 +89,7 @@ func newRemoteNode(config *remoteNodeConfig, parent *ClusteredBigCache, logger u
 	checkConfig(logger, config)
 	return &remoteNode{
 		config:        config,
-		msgQueue:      make(chan *message.NodeWireMessage, 1024 * 1024),
+		msgQueue:      make(chan *message.NodeWireMessage, 1024 * 64),
 		done:          make(chan struct{}, 2),
 		state:         nodeStateDisconnected,
 		stateLock:     sync.Mutex{},
@@ -192,10 +192,11 @@ func (r *remoteNode) startPinging() {
 func (r *remoteNode) start() {
 	go r.networkConsumer()
 	go r.handleMessage()
-	go r.handleMessage()
-	go r.handleMessage()
-	go r.handleMessage()
-	go r.handleMessage()
+	//go r.handleMessage()
+	//go r.handleMessage()
+	//go r.handleMessage()
+	//go r.handleMessage()
+
 	r.sendVerify()
 	r.startPinging() //start this early here so that clients that connected without responding to PINGS will be diconnected
 	//ping response from clients has not yet sent MsgVERIFY will be discarded
@@ -256,6 +257,7 @@ func (r *remoteNode) networkConsumer() {
 		header, err := r.connection.ReadData(6, 0) //read 6 byte header
 		if nil != err {
 			utils.Critical(r.logger, fmt.Sprintf("remote node '%s' has disconnected", r.config.Id))
+			//fmt.Println(errors.Errorf("remote node '%s' has disconnected", r.config.Id).ErrorStack())
 			jq := r.parentNode.joinQueue
 			r.shutDown("networkConsumer()-readHeader")
 			if r.config.ReconnectOnDisconnect {
@@ -271,6 +273,7 @@ func (r *remoteNode) networkConsumer() {
 			data, err = r.connection.ReadData(uint(dataLength), 0)
 			if nil != err {
 				utils.Critical(r.logger, fmt.Sprintf("remote node '%s' has disconnected", r.config.Id))
+				//fmt.Println(errors.Errorf("remote node '%s' has disconnected", r.config.Id).ErrorStack())
 				jq := r.parentNode.joinQueue
 				r.shutDown("networkConsumer()-readBody")
 				if r.config.ReconnectOnDisconnect {
@@ -303,6 +306,7 @@ func (r *remoteNode) sendMessage(m message.NodeMessage) {
 	copy(data[6:], msg.Data)
 	if err := r.connection.SendData(data); err != nil {
 		utils.Critical(r.logger, fmt.Sprintf("unexpected error while sending %s data [%s]",message.MsgCodeToString(msg.Code), err))
+		//fmt.Println(errors.Errorf("unexpected error while sending %s data [%s]",message.MsgCodeToString(msg.Code), err).ErrorStack())
 		jq := r.parentNode.joinQueue
 		r.shutDown("sendMessage()")
 		if r.config.ReconnectOnDisconnect {
@@ -359,6 +363,9 @@ func (r *remoteNode) queueMessage(msg *message.NodeWireMessage) {
 		case <-r.done:
 		case r.msgQueue <- msg:
 		}
+
+		//r.handleMessagePlain(msg)
+		//fmt.Println("handlingggggggg....")
 	}
 }
 
@@ -394,6 +401,38 @@ func (r *remoteNode) handleMessage() {
 	utils.Info(r.logger, fmt.Sprintf("terminated message handler goroutine for '%s'", r.config.Id))
 	r.wg.Done()
 }
+
+
+//message handler
+func (r *remoteNode) handleMessagePlain(msg *message.NodeWireMessage) {
+
+	{
+		switch msg.Code {
+		case message.MsgVERIFY:
+			r.handleVerify(msg)
+		case message.MsgVERIFYOK:
+			r.handleVerifyOK()
+		case message.MsgPING:
+			r.handlePing()
+		case message.MsgPONG:
+			r.handlePong()
+		case message.MsgSyncRsp:
+			r.handleSyncResponse(msg)
+		case message.MsgSyncReq:
+			r.handleSyncRequest(msg)
+		case message.MsgGETReq:
+			r.handleGetRequest(msg)
+		case message.MsgGETRsp:
+			r.handleGetResponse(msg)
+		case message.MsgPUT:
+			r.handlePut(msg)
+		case message.MsgDEL:
+			r.handleDelete(msg)
+		}
+	}
+
+}
+
 
 //send a verify messge. this is always the first message to be sent once a connection is established.
 func (r *remoteNode) sendVerify() {

@@ -87,8 +87,8 @@ func New(config *ClusteredBigCacheConfig, logger utils.AppLogger) *ClusteredBigC
 		joinQueue:   make(chan *message.ProposedPeer, 512),
 		pendingConn: sync.Map{},
 		nodeIndex: 	 0,
-		getRequestChan:	 make(chan *getRequestDataWrapper, 1024 * 1024),
-		replicationChan: make(chan *replicationMsg, 1024 * 1024),
+		getRequestChan:	 make(chan *getRequestDataWrapper, 1024 * 64),
+		replicationChan: make(chan *replicationMsg, 1024 * 64),
 		state: 			clusterStateStarting,
 		mode: 			clusterModeACTIVE,
 	}
@@ -384,8 +384,9 @@ func (node *ClusteredBigCache) Put(key string, data []byte, duration time.Durati
 		if peers[x].(*remoteNode).mode == clusterModePASSIVE {
 			continue
 		}
-		node.replicationChan <- &replicationMsg{r:peers[x].(*remoteNode),
-												m: &message.PutMessage{Key: key, Data: data, Expiry: expiryTime}}
+		 node.replicationChan <- &replicationMsg{r: peers[x].(*remoteNode),
+				m: &message.PutMessage{Key: key, Data: data, Expiry: expiryTime}}
+
 	}
 
 	return nil
