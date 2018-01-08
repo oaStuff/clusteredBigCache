@@ -369,6 +369,7 @@ func (r *remoteNode) queueMessage(msg *message.NodeWireMessage) {
 	}
 }
 
+
 //message handler
 func (r *remoteNode) handleMessage() {
 
