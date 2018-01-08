@@ -191,9 +191,9 @@ func (r *remoteNode) startPinging() {
 //kick start this remoteNode entity
 func (r *remoteNode) start() {
 	go r.networkConsumer()
-	for x := 0; x < 20; x++ {
+	//for x := 0; x < 20; x++ {
 		go r.handleMessage()
-	}
+	//}
 
 	r.sendVerify()
 	r.startPinging() //start this early here so that clients that connected without responding to PINGS will be diconnected
