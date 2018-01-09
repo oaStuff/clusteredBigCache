@@ -16,6 +16,9 @@ func NewSliceList() *SliceList {
 
 // Add appends a value at the end of the list
 func (list *SliceList) Add(key, value interface{}) {
+	if nil == value {
+		return
+	}
 	atomic.AddInt32(&list.size, 1)
 	list.items.Store(key, value)
 }

@@ -46,21 +46,22 @@ type remoteNodeConfig struct {
 
 // remote node definition
 type remoteNode struct {
-	config        *remoteNodeConfig
-	metrics 	  *nodeMetrics
-	connection    *comms.Connection
-	parentNode    *ClusteredBigCache
-	msgQueue      chan *message.NodeWireMessage
-	logger        utils.AppLogger
-	state         remoteNodeState
-	stateLock     sync.Mutex
-	done          chan struct{}
-	pingTimer     *time.Ticker //used to send ping message to remote
-	pingTimeout   *time.Timer  //used to monitor ping response
-	pingFailure   int32        //count the number of pings without response
-	pendingGet	  *sync.Map
-	mode 		   byte
-	wg 			   *sync.WaitGroup
+	config           *remoteNodeConfig
+	metrics          *nodeMetrics
+	connection       *comms.Connection
+	parentNode       *ClusteredBigCache
+	inboundMsgQueue  chan *message.NodeWireMessage
+	outboundMsgQueue chan message.NodeMessage
+	logger           utils.AppLogger
+	state            remoteNodeState
+	stateLock        sync.Mutex
+	done             chan struct{}
+	pingTimer        *time.Ticker //used to send ping message to remote
+	pingTimeout      *time.Timer  //used to monitor ping response
+	pingFailure      int32        //count the number of pings without response
+	pendingGet       *sync.Map
+	mode             byte
+	wg               *sync.WaitGroup
 }
 
 
@@ -88,16 +89,17 @@ func checkConfig(logger utils.AppLogger, config *remoteNodeConfig) {
 func newRemoteNode(config *remoteNodeConfig, parent *ClusteredBigCache, logger utils.AppLogger) *remoteNode {
 	checkConfig(logger, config)
 	return &remoteNode{
-		config:        config,
-		msgQueue:      make(chan *message.NodeWireMessage, CHAN_SIZE),
-		done:          make(chan struct{}, 2),
-		state:         nodeStateDisconnected,
-		stateLock:     sync.Mutex{},
-		parentNode:    parent,
-		logger:        logger,
-		metrics: 		&nodeMetrics{},
-		pendingGet: 	&sync.Map{},
-		wg: 		    &sync.WaitGroup{},
+		config:           config,
+		inboundMsgQueue:  make(chan *message.NodeWireMessage, CHAN_SIZE),
+		outboundMsgQueue: make(chan message.NodeMessage, CHAN_SIZE),
+		done:             make(chan struct{}, 2),
+		state:            nodeStateDisconnected,
+		stateLock:        sync.Mutex{},
+		parentNode:       parent,
+		logger:           logger,
+		metrics:          &nodeMetrics{},
+		pendingGet:       &sync.Map{},
+		wg:               &sync.WaitGroup{},
 	}
 }
 
@@ -178,23 +180,21 @@ func (r *remoteNode) startPinging() {
 			}
 		}
 
-		r.wg.Done()
 		if fault {
 			//the remote node is assumed to be 'dead' since it has not responded to recent ping request
 			utils.Warn(r.logger, fmt.Sprintf("shutting down connection to remote node '%s' due to no ping response", r.config.Id))
 			r.shutDown("ping timout goroutine")
 		}
 		utils.Info(r.logger, fmt.Sprintf("shutting down ping timeout goroutine for '%s'", r.config.Id))
+		r.wg.Done()
 	}()
 }
 
 //kick start this remoteNode entity
 func (r *remoteNode) start() {
 	go r.networkConsumer()
-	//for x := 0; x < 20; x++ {
-		go r.handleMessage()
-	//}
-
+	go r.handleMessage()
+	go r.networkSender()
 	r.sendVerify()
 	r.startPinging() //start this early here so that clients that connected without responding to PINGS will be diconnected
 	//ping response from clients has not yet sent MsgVERIFY will be discarded
@@ -280,10 +280,24 @@ func (r *remoteNode) networkConsumer() {
 				return
 			}
 		}
-		r.queueMessage(&message.NodeWireMessage{Code: msgCode, Data: data}) //queue message to be processed
+		r.queueInboundMessage(&message.NodeWireMessage{Code: msgCode, Data: data}) //queue message to be processed
 	}
 	utils.Info(r.logger, fmt.Sprintf("network consumer loop terminated... %s", r.config.Id))
 
+}
+
+//just queue the message in the outbound channel
+func (r *remoteNode) sendMessage(msg message.NodeMessage) {
+	defer func() {recover()}()
+
+	if r.state == nodeStateDisconnected {
+		return
+	}
+
+	select {
+	case <-r.done:
+	case r.outboundMsgQueue <- msg:
+	}
 }
 
 //this sends a message on the network
@@ -291,61 +305,64 @@ func (r *remoteNode) networkConsumer() {
 // bytes 1 & 2 == total length of the data (including the 2 byte message code)
 // bytes 3 & 4 == message code
 // bytes 5 upwards == message content
-func (r *remoteNode) sendMessage(m message.NodeMessage) {
-
-	if r.state == nodeStateDisconnected {
-		return
-	}
-
-	msg := m.Serialize()
-	data := make([]byte, 6 + len(msg.Data))	// 6 ==> 4bytes for length of message, 2bytes for message code
-	binary.LittleEndian.PutUint32(data, uint32(len(msg.Data) + 2)) //the 2 is for the message code
-	binary.LittleEndian.PutUint16(data[4:], msg.Code)
-	copy(data[6:], msg.Data)
-	if err := r.connection.SendData(data); err != nil {
-		utils.Critical(r.logger, fmt.Sprintf("unexpected error while sending %s data [%s]",message.MsgCodeToString(msg.Code), err))
-		//fmt.Println(errors.Errorf("unexpected error while sending %s data [%s]",message.MsgCodeToString(msg.Code), err).ErrorStack())
-		jq := r.parentNode.joinQueue
-		r.shutDown("sendMessage()")
-		if r.config.ReconnectOnDisconnect {
-			jq <- &message.ProposedPeer{Id: r.config.Id, IpAddress: r.config.IpAddress}
+func (r *remoteNode) networkSender() {
+	r.wg.Add(1)
+	for m := range r.outboundMsgQueue {
+		msg := m.Serialize()
+		data := make([]byte, 6+len(msg.Data))                        // 6 ==> 4bytes for length of message, 2bytes for message code
+		binary.LittleEndian.PutUint32(data, uint32(len(msg.Data)+2)) //the 2 is for the message code
+		binary.LittleEndian.PutUint16(data[4:], msg.Code)
+		copy(data[6:], msg.Data)
+		if err := r.connection.SendData(data); err != nil {
+			utils.Critical(r.logger, fmt.Sprintf("unexpected error while sending %s data [%s]", message.MsgCodeToString(msg.Code), err))
+			jq := r.parentNode.joinQueue
+			r.shutDown("sendMessage()")
+			if r.config.ReconnectOnDisconnect {
+				jq <- &message.ProposedPeer{Id: r.config.Id, IpAddress: r.config.IpAddress}
+			}
+			break
 		}
 	}
+	utils.Info(r.logger, "terminated network sender for " + r.config.Id)
+	r.wg.Done()
 }
 
 //bring down the remote node. should not be called from outside networkConsumer()
 func (r *remoteNode) shutDown(method string) {
 
-	//state change
-	r.stateLock.Lock()
-	if r.state == nodeStateDisconnected {
+	go func() {
+		//state change
+		r.stateLock.Lock()
+		if r.state == nodeStateDisconnected {
+			r.stateLock.Unlock()
+			return
+		}
+		r.state = nodeStateDisconnected
 		r.stateLock.Unlock()
-		return
-	}
-	r.state = nodeStateDisconnected
-	r.stateLock.Unlock()
 
 
 
-	r.parentNode.eventRemoteNodeDisconneced(r)
-	r.connection.Close()
+		r.parentNode.eventRemoteNodeDisconneced(r)
+		r.connection.Close()
 
-	if r.pingTimeout != nil {
-		r.pingTimeout.Stop()
-	}
-	if r.pingTimer != nil {
-		r.pingTimer.Stop()
-	}
-	close(r.done)
-	close(r.msgQueue)
-	r.pendingGet = nil
-	fmt.Println("about to wait in shutdown. called by", method)
-	r.wg.Wait()
-	utils.Info(r.logger, fmt.Sprintf("remote node '%s' completely shutdown", r.config.Id))
+		if r.pingTimeout != nil {
+			r.pingTimeout.Stop()
+		}
+		if r.pingTimer != nil {
+			r.pingTimer.Stop()
+		}
+		close(r.done)
+		close(r.inboundMsgQueue)
+		close(r.outboundMsgQueue)
+		r.pendingGet = nil
+		fmt.Printf("about to wait in shutdown[%s]. called by %s\n", r.config.Id, method)
+		r.wg.Wait()
+		utils.Info(r.logger, fmt.Sprintf("remote node '%s' completely shutdown", r.config.Id))
+	}()
 }
 
 //just queue the message in a channel
-func (r *remoteNode) queueMessage(msg *message.NodeWireMessage) {
+func (r *remoteNode) queueInboundMessage(msg *message.NodeWireMessage) {
 	defer func() {recover()}()
 
 	if r.state == nodeStateHandshake { //when in the handshake state only accept MsgVERIFY and MsgVERIFYOK messages
@@ -359,9 +376,7 @@ func (r *remoteNode) queueMessage(msg *message.NodeWireMessage) {
 	if r.state != nodeStateDisconnected {
 		select {
 		case <-r.done:
-		case r.msgQueue <- msg:
-		default:
-			fmt.Println("dropped:", message.MsgCodeToString(msg.Code))
+		case r.inboundMsgQueue <- msg:
 		}
 
 		//r.handleMessagePlain(msg)
@@ -369,11 +384,13 @@ func (r *remoteNode) queueMessage(msg *message.NodeWireMessage) {
 	}
 }
 
+
 //message handler
 func (r *remoteNode) handleMessage() {
 
 	r.wg.Add(1)
-	for msg := range r.msgQueue {
+	for msg := range r.inboundMsgQueue {
+		if r.state == nodeStateDisconnected{continue}
 		switch msg.Code {
 		case message.MsgVERIFY:
 			r.handleVerify(msg)
@@ -597,6 +614,7 @@ func (r *remoteNode) handleGetResponse(msg *message.NodeWireMessage) {
 }
 
 func (r *remoteNode) handlePut(msg *message.NodeWireMessage) {
+
 	putMsg := message.PutMessage{}
 	putMsg.DeSerialize(msg)
 	if putMsg.Expiry == 0 {

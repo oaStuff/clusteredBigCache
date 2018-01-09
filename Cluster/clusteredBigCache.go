@@ -35,6 +35,7 @@ var (
 	ErrNotStarted			=	errors.New("node not started, call Start()")
 )
 
+
 //Cluster configuration
 type ClusteredBigCacheConfig struct {
 	Id             string   `json:"id"`
