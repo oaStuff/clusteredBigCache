@@ -5,6 +5,7 @@ import (
 	"sync/atomic"
 	"github.com/oaStuff/clusteredBigCache/bigcache/queue"
 	"time"
+	"github.com/emirpasic/gods/sets/hashset"
 )
 
 const NO_EXPIRY uint64 = 0
@@ -91,11 +92,48 @@ func (s *cacheShard) set(key string, hashedKey uint64, entry []byte, duration ti
 	return 0, err
 }
 
-func (s *cacheShard) evictDel(key string, hashedKey uint64) error {
+func (s *cacheShard) evictDel99(key string, hashedKey uint64) error {
 	//the lock is held in ttlManager so it is safe to do normal increment here
 	s.stats.EvictCount++
 	return s.__del(key, hashedKey, true)
 }
+
+
+func (s *cacheShard) evictDel(timeStamp uint64, set *hashset.Set) error {
+	s.lock.Lock()
+
+	for _, v := range set.Values() { // remove all data in the hashset for this eviction
+		s.stats.EvictCount++
+		keyHash := s.ttlTable.ShardHasher.Sum64(v.(string))
+		itemIndex := s.hashmap[keyHash]
+
+		if itemIndex == 0 {
+			s.delmiss()
+			continue
+		}
+
+		wrappedEntry, err := s.entries.Get(int(itemIndex))
+		if err != nil {
+			s.delmiss()
+			continue
+		}
+
+		storedTimestamp := readTimestampFromEntry(wrappedEntry)
+		if storedTimestamp == timeStamp {
+			delete(s.hashmap, keyHash)
+			s.onRemove(wrappedEntry)
+			resetKeyFromEntry(wrappedEntry)
+			s.delete(itemIndex)
+			s.delhit()
+		}
+
+	}
+
+	s.lock.Unlock()
+
+	return nil
+}
+
 
 func (s *cacheShard) del(key string, hashedKey uint64) error {
 	return s.__del(key, hashedKey, false)

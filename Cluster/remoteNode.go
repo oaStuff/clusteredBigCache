@@ -271,7 +271,6 @@ func (r *remoteNode) networkConsumer() {
 			data, err = r.connection.ReadData(uint(dataLength), 0)
 			if nil != err {
 				utils.Critical(r.logger, fmt.Sprintf("remote node '%s' has disconnected", r.config.Id))
-				//fmt.Println(errors.Errorf("remote node '%s' has disconnected", r.config.Id).ErrorStack())
 				jq := r.parentNode.joinQueue
 				r.shutDown("networkConsumer()-readBody")
 				if r.config.ReconnectOnDisconnect {
@@ -308,6 +307,7 @@ func (r *remoteNode) sendMessage(msg message.NodeMessage) {
 func (r *remoteNode) networkSender() {
 	r.wg.Add(1)
 	for m := range r.outboundMsgQueue {
+		if r.state == nodeStateDisconnected {continue}
 		msg := m.Serialize()
 		data := make([]byte, 6+len(msg.Data))                        // 6 ==> 4bytes for length of message, 2bytes for message code
 		binary.LittleEndian.PutUint32(data, uint32(len(msg.Data)+2)) //the 2 is for the message code
