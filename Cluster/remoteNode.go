@@ -360,6 +360,8 @@ func (r *remoteNode) queueMessage(msg *message.NodeWireMessage) {
 		select {
 		case <-r.done:
 		case r.msgQueue <- msg:
+		default:
+			fmt.Println("dropped:", message.MsgCodeToString(msg.Code))
 		}
 
 		//r.handleMessagePlain(msg)
