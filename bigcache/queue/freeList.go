@@ -18,9 +18,15 @@ type freeList struct {
 }
 
 func newFreeList() *freeList {
-	return &freeList{
+	fl := &freeList{
 		indexTree: avltree.NewWith(utils.IntComparator),
 	}
+
+	for x := 0; x < 8; x++ {
+		fl.sizeList[x] = make(posArray,0, 256)
+	}
+
+	return fl
 }
 
 func (list *freeList) add(index, size int) error {
