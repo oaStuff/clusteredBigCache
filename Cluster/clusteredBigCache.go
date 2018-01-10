@@ -193,7 +193,7 @@ func (node *ClusteredBigCache) ShutDown() {
 	for _, v := range node.remoteNodes.Values() {
 		rn := v.(*remoteNode)
 		rn.config.ReconnectOnDisconnect = false
-		rn.shutDown("ShutDown()-Parent")
+		rn.shutDown()
 	}
 
 	close(node.joinQueue)

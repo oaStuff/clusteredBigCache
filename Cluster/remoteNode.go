@@ -137,7 +137,6 @@ func (r *remoteNode) startPinging() {
 					}
 				}
 				r.pingTimeout.Reset(time.Second * time.Duration(r.config.PingTimeout))
-				fmt.Println("sending ping to", r.config.Id)
 				r.sendMessage(&message.PingMessage{})
 			case <-r.done: //we have this so that the goroutine would not linger after this node disconnects because
 				done = true //of the blocking channel in the above case statement
@@ -183,7 +182,7 @@ func (r *remoteNode) startPinging() {
 		if fault {
 			//the remote node is assumed to be 'dead' since it has not responded to recent ping request
 			utils.Warn(r.logger, fmt.Sprintf("shutting down connection to remote node '%s' due to no ping response", r.config.Id))
-			r.shutDown("ping timout goroutine")
+			r.shutDown()
 		}
 		utils.Info(r.logger, fmt.Sprintf("shutting down ping timeout goroutine for '%s'", r.config.Id))
 		r.wg.Done()
@@ -255,9 +254,8 @@ func (r *remoteNode) networkConsumer() {
 		header, err := r.connection.ReadData(6, 0) //read 6 byte header
 		if nil != err {
 			utils.Critical(r.logger, fmt.Sprintf("remote node '%s' has disconnected", r.config.Id))
-			//fmt.Println(errors.Errorf("remote node '%s' has disconnected", r.config.Id).ErrorStack())
 			jq := r.parentNode.joinQueue
-			r.shutDown("networkConsumer()-readHeader")
+			r.shutDown()
 			if r.config.ReconnectOnDisconnect {
 				jq <- &message.ProposedPeer{Id: r.config.Id, IpAddress: r.config.IpAddress}
 			}
@@ -272,7 +270,7 @@ func (r *remoteNode) networkConsumer() {
 			if nil != err {
 				utils.Critical(r.logger, fmt.Sprintf("remote node '%s' has disconnected", r.config.Id))
 				jq := r.parentNode.joinQueue
-				r.shutDown("networkConsumer()-readBody")
+				r.shutDown()
 				if r.config.ReconnectOnDisconnect {
 					jq <- &message.ProposedPeer{Id: r.config.Id, IpAddress: r.config.IpAddress}
 				}
@@ -316,7 +314,7 @@ func (r *remoteNode) networkSender() {
 		if err := r.connection.SendData(data); err != nil {
 			utils.Critical(r.logger, fmt.Sprintf("unexpected error while sending %s data [%s]", message.MsgCodeToString(msg.Code), err))
 			jq := r.parentNode.joinQueue
-			r.shutDown("sendMessage()")
+			r.shutDown()
 			if r.config.ReconnectOnDisconnect {
 				jq <- &message.ProposedPeer{Id: r.config.Id, IpAddress: r.config.IpAddress}
 			}
@@ -328,7 +326,7 @@ func (r *remoteNode) networkSender() {
 }
 
 //bring down the remote node. should not be called from outside networkConsumer()
-func (r *remoteNode) shutDown(method string) {
+func (r *remoteNode) shutDown() {
 
 	go func() {
 		//state change
@@ -355,7 +353,6 @@ func (r *remoteNode) shutDown(method string) {
 		close(r.inboundMsgQueue)
 		close(r.outboundMsgQueue)
 		r.pendingGet = nil
-		fmt.Printf("about to wait in shutdown[%s]. called by %s\n", r.config.Id, method)
 		r.wg.Wait()
 		utils.Info(r.logger, fmt.Sprintf("remote node '%s' completely shutdown", r.config.Id))
 	}()
@@ -378,9 +375,6 @@ func (r *remoteNode) queueInboundMessage(msg *message.NodeWireMessage) {
 		case <-r.done:
 		case r.inboundMsgQueue <- msg:
 		}
-
-		//r.handleMessagePlain(msg)
-		//fmt.Println("handlingggggggg....")
 	}
 }
 
@@ -472,14 +466,14 @@ func (r *remoteNode) handleVerify(msg *message.NodeWireMessage) {
 	if verifyMsgRsp.Mode == clusterModePASSIVE {
 		if r.parentNode.mode == clusterModePASSIVE {  //passive nodes are not allowed to connect to each other
 			utils.Warn(r.logger, fmt.Sprintf("node '%s' and '%s' are both passive nodes, shuting down the connection", r.parentNode.config.Id, verifyMsgRsp.Id))
-			r.shutDown("handleVerify()-PASSIVE")
+			r.shutDown()
 			return
 		}
 	}
 
 	if !r.parentNode.eventVerifyRemoteNode(r) { //seek parent's node approval on this
 		utils.Warn(r.logger, fmt.Sprintf("node already has remote node '%s' so shutdown new connection", r.config.Id))
-		r.shutDown("handleVerify()-Duplicate")
+		r.shutDown()
 		return
 	}
 
@@ -514,9 +508,7 @@ func (r *remoteNode) handleVerifyOK() {
 
 //handles ping message from a remote node
 func (r *remoteNode) handlePing() {
-	fmt.Println("ping recieved...", r.config.Id)
 	atomic.AddUint64(&r.metrics.pingRecieved, 1)
-	fmt.Println("sending pong to", r.config.Id)
 	r.sendMessage(&message.PongMessage{})
 	atomic.AddUint64(&r.metrics.pongSent, 1)
 }
@@ -531,7 +523,6 @@ func (r *remoteNode) handlePong() {
 		}
 	}
 	atomic.StoreInt32(&r.pingFailure, 0) //reset failure counter since we got a response
-	fmt.Println("PONG recieved...", r.config.Id)
 }
 
 //build and send a sync message

@@ -1,6 +1,9 @@
 package queue
 
-import "testing"
+import (
+	"testing"
+	"math/rand"
+)
 
 func TestFreeList_add(t *testing.T) {
 	list := newFreeList()
@@ -50,4 +53,20 @@ func TestFreeList_find(t *testing.T) {
 	t.Log(idx)
 	t.Log(list.sizeList)
 	t.Log(list.sizeList[1][0])
+}
+
+var gList *freeList
+
+func init() {
+	gList = newFreeList()
+	for x := 0; x < 1024; x++ {
+		gList.add(x, rand.Intn(1024 * 1024 * 1024))
+	}
+}
+
+func BenchmarkFreelist(b *testing.B)  {
+
+	for x := 0; x < b.N; x++ {
+		gList.find(rand.Intn(1024 * 1024))
+	}
 }

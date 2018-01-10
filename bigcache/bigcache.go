@@ -1,8 +1,9 @@
 package bigcache
 
 import (
-	"fmt"
+
 	"time"
+	"fmt"
 )
 
 const (
