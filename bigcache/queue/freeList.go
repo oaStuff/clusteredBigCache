@@ -5,6 +5,7 @@ import (
 	"github.com/emirpasic/gods/utils"
 )
 
+//item that will trace free space in the parent slice
 type itemPos struct {
 	actualSize		int
 	parentIndex		int
@@ -12,11 +13,14 @@ type itemPos struct {
 
 type posArray []*itemPos
 
+//freelist data structure
 type freeList struct {
 	sizeList [8]posArray
 	indexTree *avltree.Tree
 }
 
+
+//create a new freeList
 func newFreeList() *freeList {
 	fl := &freeList{
 		indexTree: avltree.NewWith(utils.IntComparator),
@@ -29,10 +33,16 @@ func newFreeList() *freeList {
 	return fl
 }
 
+
+//add is to add an index of a parent slice along with its size into the freelist.
+//this is done by checking if previous items in the freelist is adjacent to the new one been added
+//if so combine them into a single entry
 func (list *freeList) add(index, size int) error {
+	//NOTE: every added entry will create 2 entries in the indexTree
+	//this is to help identify its start and end positions.
 
 	item := &itemPos{parentIndex: index, actualSize: size}
-	if d, found := list.indexTree.Get(index - 1); found { //check the left side
+	if d, found := list.indexTree.Get(index - 1); found { //check if there is an adjacent entry to the 'left' of index
 		v := d.(*itemPos)
 		list.indexTree.Remove(index - 1)
 		list.indexTree.Remove(v.parentIndex)
@@ -41,7 +51,7 @@ func (list *freeList) add(index, size int) error {
 		item.parentIndex = v.parentIndex
 		item.actualSize = v.actualSize + size
 	}
-	if d, found := list.indexTree.Get(index + size); found { //check the right side
+	if d, found := list.indexTree.Get(index + size); found { //check if there is an adjacent entry to the 'right' of index
 		v := d.(*itemPos)
 		list.indexTree.Remove(index + size)
 		list.indexTree.Remove(v.parentIndex + v.actualSize - 1)
@@ -51,6 +61,7 @@ func (list *freeList) add(index, size int) error {
 		item.actualSize = size + v.actualSize
 	}
 
+	//store it into the indexTree. both its start and end position
 	list.indexTree.Put(item.parentIndex, item)
 	list.indexTree.Put(item.parentIndex + item.actualSize - 1, item)
 	list.putIntoSizeList(item)
