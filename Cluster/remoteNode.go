@@ -328,6 +328,7 @@ func (r *remoteNode) networkSender() {
 //bring down the remote node. should not be called from outside networkConsumer()
 func (r *remoteNode) shutDown() {
 
+	r.parentNode.eventRemoteNodeDisconneced(r)
 	go func() {
 		//state change
 		r.stateLock.Lock()
@@ -339,8 +340,6 @@ func (r *remoteNode) shutDown() {
 		r.stateLock.Unlock()
 
 
-
-		r.parentNode.eventRemoteNodeDisconneced(r)
 		r.connection.Close()
 
 		if r.pingTimeout != nil {
