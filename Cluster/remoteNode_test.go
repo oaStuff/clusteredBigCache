@@ -44,7 +44,7 @@ func TestRemoteNode(t *testing.T)  {
 	}
 
 	rn.start()
-	defer rn.shutDown()
+	defer rn.tearDown()
 
 	svr.SendVerifyMessage("server1")
 	time.Sleep(time.Second * 1)
@@ -84,7 +84,7 @@ func TestNoPingResponseDisconnt(t *testing.T)  {
 	}
 
 	rn.start()
-	defer rn.shutDown()
+	defer rn.tearDown()
 
 	time.Sleep(time.Second * 6)
 	if rn.state != nodeStateDisconnected {
