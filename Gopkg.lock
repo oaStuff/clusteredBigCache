@@ -32,16 +32,22 @@
   version = "v0.0.3"
 
 [[projects]]
+  name = "github.com/oklog/run"
+  packages = ["."]
+  revision = "4dadeb3030eda0273a12382bb2348ffc7c9d1a39"
+  version = "v1.0.0"
+
+[[projects]]
   branch = "master"
   name = "github.com/ugorji/go"
   packages = ["codec"]
-  revision = "f57d8945648dbfe4c332cff9c50fb57548958e3f"
+  revision = "9831f2c3ac1068a78f50999a30db84270f647af6"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/sys"
   packages = ["unix"]
-  revision = "b8f5ef32195cae6470b728e8ca677f0dbed1a004"
+  revision = "810d7000345868fc619eb81f46307107118f4ae1"
 
 [[projects]]
   name = "gopkg.in/go-playground/validator.v8"
@@ -53,11 +59,11 @@
   branch = "v2"
   name = "gopkg.in/yaml.v2"
   packages = ["."]
-  revision = "287cf08546ab5e7e37d55a84f7ed3fd1db036de5"
+  revision = "d670f9405373e636a5a2765eea47fac0c9bc91a4"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e0a56d277b120a9127efab1f2a31b0e56eb6c8676b7ec961c46bcfac3e178517"
+  inputs-digest = "7685fac617f33357b38ad41bff7dc6c6d9b17b9ba868abf4064786f98a69f673"
   solver-name = "gps-cdcl"
   solver-version = 1

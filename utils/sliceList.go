@@ -16,6 +16,9 @@ func NewSliceList() *SliceList {
 
 // Add appends a value at the end of the list
 func (list *SliceList) Add(key, value interface{}) {
+	if nil == value {
+		return
+	}
 	atomic.AddInt32(&list.size, 1)
 	list.items.Store(key, value)
 }
@@ -42,11 +45,9 @@ func (list *SliceList) Get(key interface{}) (interface{}, bool) {
 }
 
 func (list *SliceList) Values() []interface{} {
-	newElements := make([]interface{}, list.size, list.size)
-	currIndex := 0
+	newElements := make([]interface{}, 0, list.size)
 	list.items.Range(func(key, value interface{}) bool {
-		newElements[currIndex] = value
-		currIndex++
+		newElements = append(newElements, value)
 		return true
 	})
 	return newElements

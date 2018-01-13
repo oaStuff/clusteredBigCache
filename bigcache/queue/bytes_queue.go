@@ -29,6 +29,7 @@ type BytesQueue struct {
 	headerBuffer    []byte
 	verbose         bool
 	initialCapacity int
+	freelist 		*freeList
 }
 
 type queueError struct {
@@ -49,6 +50,7 @@ func NewBytesQueue(initialCapacity int, maxCapacity int, verbose bool) *BytesQue
 		rightMargin:     leftMarginIndex,
 		verbose:         verbose,
 		initialCapacity: initialCapacity,
+		freelist: 		 newFreeList(),
 	}
 }
 
@@ -65,6 +67,18 @@ func (q *BytesQueue) Reset() {
 // Returns index for pushed data or error if maximum size queue limit is reached.
 func (q *BytesQueue) Push(data []byte) (int, error) {
 	dataLen := len(data)
+
+	idx := q.freelist.find(dataLen + headerEntrySize)
+	if -1 != idx {
+		tmpTail := q.tail
+		q.tail = idx
+		binary.LittleEndian.PutUint32(q.headerBuffer, uint32(dataLen))
+		q.copy(q.headerBuffer, headerEntrySize)
+		q.copy(data, dataLen)
+		q.count++
+		q.tail = tmpTail
+		return idx, nil
+	}
 
 	if q.availableSpaceAfterTail() < dataLen+headerEntrySize {
 		if q.availableSpaceBeforeHead() >= dataLen+headerEntrySize {
@@ -208,16 +222,13 @@ func (q *BytesQueue) availableSpaceBeforeHead() int {
 	return q.head - q.tail - minimumEmptyBlobSize
 }
 
-func (q *BytesQueue) DeleteAndCompact(index int) (int, error) {
+func (q *BytesQueue) Delete(index int) error {
 	_, size, err := q.peek(index)
 	if err != nil {
-		return -1, err
+		return err
 	}
 
-	copy(q.array[index:], q.array[index + headerEntrySize + size : q.tail])
-	q.tail = q.tail - (headerEntrySize + size)
-	q.rightMargin = q.tail
-
-
-	return headerEntrySize + size, nil
+	q.freelist.add(index, size + headerEntrySize)
+	q.count--
+	return nil
 }

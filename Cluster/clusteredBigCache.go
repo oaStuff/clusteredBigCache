@@ -26,12 +26,15 @@ const (
 	clusterModePASSIVE
 )
 
+const CHAN_SIZE  = 1024 * 64
+
 var (
 	ErrNotEnoughReplica		=	errors.New("not enough replica")
 	ErrNotFound				= 	errors.New("data not found")
 	ErrTimedOut				= 	errors.New("not found as a result of timing out")
 	ErrNotStarted			=	errors.New("node not started, call Start()")
 )
+
 
 //Cluster configuration
 type ClusteredBigCacheConfig struct {
@@ -52,6 +55,7 @@ type ClusteredBigCacheConfig struct {
 	PingFailureThreshHold int32  `json:"ping_failure_thresh_hold"`
 	PingInterval          int    `json:"ping_interval"`
 	PingTimeout           int    `json:"ping_timeout"`
+	ShardSize			  int 	 `json:"shard_size"`
 }
 
 //Cluster definition
@@ -74,6 +78,11 @@ type ClusteredBigCache struct {
 func New(config *ClusteredBigCacheConfig, logger utils.AppLogger) *ClusteredBigCache {
 
 	cfg := bigcache.DefaultConfig()
+	if config.ShardSize < 16 {
+		cfg.Shards = 16
+	} else {
+		cfg.Shards = config.ShardSize
+	}
 	cache, err := bigcache.NewBigCache(cfg)
 	if err != nil {
 		panic(err)
@@ -87,17 +96,18 @@ func New(config *ClusteredBigCacheConfig, logger utils.AppLogger) *ClusteredBigC
 		joinQueue:   make(chan *message.ProposedPeer, 512),
 		pendingConn: sync.Map{},
 		nodeIndex: 	 0,
-		getRequestChan:	 make(chan *getRequestDataWrapper, 1024 * 4),
-		replicationChan: make(chan *replicationMsg, 4096),
+		getRequestChan:	 make(chan *getRequestDataWrapper, CHAN_SIZE),
+		replicationChan: make(chan *replicationMsg, CHAN_SIZE),
 		state: 			clusterStateStarting,
 		mode: 			clusterModeACTIVE,
 	}
 }
 
 //create a new local node that does not store any data locally
-func NewPassiveClient(serverEndpoint string, localPort, pingInterval, pingTimeout int, pingFailureThreashold int32, logger utils.AppLogger) *ClusteredBigCache {
+func NewPassiveClient(id string, serverEndpoint string, localPort, pingInterval, pingTimeout int, pingFailureThreashold int32, logger utils.AppLogger) *ClusteredBigCache {
 
 	config := DefaultClusterConfig()
+	config.Id = id
 	config.Join = true
 	config.JoinIp = serverEndpoint
 	config.ReconnectOnDisconnect = true
@@ -114,8 +124,8 @@ func NewPassiveClient(serverEndpoint string, localPort, pingInterval, pingTimeou
 		joinQueue:   make(chan *message.ProposedPeer, 512),
 		pendingConn: sync.Map{},
 		nodeIndex: 	 0,
-		getRequestChan:	 make(chan *getRequestDataWrapper, 1024),
-		replicationChan: make(chan *replicationMsg, 4096),
+		getRequestChan:	 make(chan *getRequestDataWrapper, CHAN_SIZE),
+		replicationChan: make(chan *replicationMsg, CHAN_SIZE),
 		state: 			clusterStateStarting,
 		mode: 			clusterModePASSIVE,
 	}
@@ -189,7 +199,7 @@ func (node *ClusteredBigCache) ShutDown() {
 	for _, v := range node.remoteNodes.Values() {
 		rn := v.(*remoteNode)
 		rn.config.ReconnectOnDisconnect = false
-		rn.shutDown()
+		rn.tearDown()
 	}
 
 	close(node.joinQueue)
@@ -250,6 +260,7 @@ func (node *ClusteredBigCache) getRemoteNodes() []interface{} {
 func (node *ClusteredBigCache) eventVerifyRemoteNode(remoteNode *remoteNode) bool {
 
 	if node.remoteNodes.Contains(remoteNode.config.Id) {
+		utils.Warn(node.logger, "clusterBigCache already contains " + remoteNode.config.Id)
 		return false
 	}
 
@@ -319,7 +330,7 @@ func (node *ClusteredBigCache) connectToExistingNodes() {
 			continue
 		}
 
-		//if we are already connected to the remote node just exit
+		//if we are already connected to the remote node just continue
 		keys := node.remoteNodes.Keys()
 		if _, ok := keys.Load(value.Id); ok {
 			continue
@@ -382,8 +393,8 @@ func (node *ClusteredBigCache) Put(key string, data []byte, duration time.Durati
 		if peers[x].(*remoteNode).mode == clusterModePASSIVE {
 			continue
 		}
-		node.replicationChan <- &replicationMsg{r:peers[x].(*remoteNode),
-												m: &message.PutMessage{Key: key, Data: data, Expiry: expiryTime}}
+		node.replicationChan <- &replicationMsg{r: peers[x].(*remoteNode),
+			m: &message.PutMessage{Key: key, Data: data, Expiry: expiryTime}}
 	}
 
 	return nil

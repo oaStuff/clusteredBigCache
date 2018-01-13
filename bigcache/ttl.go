@@ -13,7 +13,7 @@ type ttlManager struct {
 	timeTree    *avltree.Tree
 	treeLock    sync.Mutex
 	timer       *time.Timer
-	shardHasher Hasher
+	ShardHasher Hasher
 }
 
 func newTtlManager(shard *cacheShard, hasher Hasher) *ttlManager {
@@ -22,7 +22,7 @@ func newTtlManager(shard *cacheShard, hasher Hasher) *ttlManager {
 		timeTree:    avltree.NewWith(utils.UInt64Comparator),
 		treeLock:    sync.Mutex{},
 		timer:       time.NewTimer(time.Hour * 10), //fire the time on time. just for initialization
-		shardHasher: hasher,
+		ShardHasher: hasher,
 	}
 
 	go ttl.eviction()
@@ -102,12 +102,16 @@ func (ttl *ttlManager) eviction() {
 		}
 
 		key, value := ttl.peek() //peek the value at the head(the tree keys are ordered)
-		ttl.evict(key, value)
+		ttl.timeTree.Remove(key)
+
+		ttl.treeLock.Unlock()
+		ttl.evict(key.(uint64), value)
+
 
 		for { //loop through to ensure all expired keys are removed in this single step
 
+			ttl.treeLock.Lock()
 			if ttl.timeTree.Size() < 1 {
-				//log.Println("breaking...")
 				break
 			}
 
@@ -115,7 +119,9 @@ func (ttl *ttlManager) eviction() {
 			nextExpiryTime := key.(uint64)
 			interval := nextExpiryTime - uint64(time.Now().Unix())
 			if 0 == interval {
-				ttl.evict(key, value)
+				ttl.timeTree.Remove(key)
+				ttl.treeLock.Unlock()
+				ttl.evict(key.(uint64), value)
 			} else {
 				ttl.resetTimer(nextExpiryTime) //TODO: should this not just call Reset() directly? seen that the timer just fired
 				break                          // TODO: and would be in the expired state
@@ -158,14 +164,8 @@ func (ttl *ttlManager) peek() (interface{}, interface{}) {
 }
 
 //Do the eviction from the tree and parent shard
-func (ttl *ttlManager) evict(key, value interface{}) {
+func (ttl *ttlManager) evict(timeStamp uint64, value interface{}) {
 
 	set := value.(*hashset.Set)
-	for _, v := range set.Values() { // remove all data in the hashset for this eviction
-		keyHash := ttl.shardHasher.Sum64(v.(string))
-		ttl.shard.evictDel(v.(string), keyHash)
-		//log.Printf("removed key %s with tree key %d in shard [%d]", v.(string),key, ttl.shard.sharedNum )
-	}
-
-	ttl.timeTree.Remove(key)
+	ttl.shard.evictDel(timeStamp, set)
 }
