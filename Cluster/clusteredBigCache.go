@@ -55,6 +55,7 @@ type ClusteredBigCacheConfig struct {
 	PingFailureThreshHold int32  `json:"ping_failure_thresh_hold"`
 	PingInterval          int    `json:"ping_interval"`
 	PingTimeout           int    `json:"ping_timeout"`
+	ShardSize			  int 	 `json:"shard_size"`
 }
 
 //Cluster definition
@@ -77,6 +78,11 @@ type ClusteredBigCache struct {
 func New(config *ClusteredBigCacheConfig, logger utils.AppLogger) *ClusteredBigCache {
 
 	cfg := bigcache.DefaultConfig()
+	if config.ShardSize < 16 {
+		cfg.Shards = 16
+	} else {
+		cfg.Shards = config.ShardSize
+	}
 	cache, err := bigcache.NewBigCache(cfg)
 	if err != nil {
 		panic(err)

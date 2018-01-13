@@ -45,11 +45,9 @@ func (list *SliceList) Get(key interface{}) (interface{}, bool) {
 }
 
 func (list *SliceList) Values() []interface{} {
-	newElements := make([]interface{}, list.size, list.size)
-	currIndex := 0
+	newElements := make([]interface{}, 0, list.size)
 	list.items.Range(func(key, value interface{}) bool {
-		newElements[currIndex] = value
-		currIndex++
+		newElements = append(newElements, value)
 		return true
 	})
 	return newElements

@@ -191,16 +191,7 @@ func (r *remoteNode) startPinging() {
 	}()
 }
 
-//kick start this remoteNode entity
-func (r *remoteNode) startup() {
-	go r.networkConsumer()
-	go r.handleMessage()
-	go r.networkSender()
-	r.sendVerify()
-	r.startPinging() //start this early here so that clients that connected without responding to PINGS will be diconnected
-	//ping response from clients has not yet sent MsgVERIFY will be discarded
-}
-
+//shut down this object
 func (r *remoteNode) shutDown()  {
 	defer func() {recover()}()
 
@@ -210,11 +201,13 @@ func (r *remoteNode) shutDown()  {
 	}
 }
 
+
+//startup this remoteNode
 func (r *remoteNode) start()  {
 	r.wg.Add(1)  //temporary increment
-	var g run.Group
+	var g run.Group //uses run.Group
 	{
-		g.Add(func() error {
+		g.Add(func() error {	//this is to terminate this remoteNode from its parent
 			<-r.done
 			return errors.New("terminating")
 		}, func(err error) {
@@ -223,7 +216,7 @@ func (r *remoteNode) start()  {
 	}
 	{
 		done := make(chan struct{})
-		g.Add(func() error{
+		g.Add(func() error{		//this is for the ping timer
 			r.pingTimer = time.NewTicker(time.Second * time.Duration(r.config.PingInterval))
 			r.sendMessage(&message.PingMessage{}) //send the first ping message
 			exit := false
@@ -258,7 +251,7 @@ func (r *remoteNode) start()  {
 	}
 	{
 		done := make(chan struct{})
-		g.Add(func() error{
+		g.Add(func() error{		//this is for the ping response (pong) timer
 			r.pingTimeout = time.NewTimer(time.Second * time.Duration(r.config.PingTimeout))
 			fault := false
 			exit := false
@@ -300,7 +293,7 @@ func (r *remoteNode) start()  {
 		})
 	}
 	{
-		g.Add(func() error {
+		g.Add(func() error {		//this is for the network consumer. ie reading data off the network
 			r.wg.Add(1)
 			r.networkConsumer()
 			r.wg.Done()
@@ -310,7 +303,7 @@ func (r *remoteNode) start()  {
 		})
 	}
 	{
-		g.Add(func() error {
+		g.Add(func() error {		//this is for handle and dispatching messages
 			r.wg.Add(1)
 			r.handleMessage()
 			r.wg.Done()
@@ -321,7 +314,7 @@ func (r *remoteNode) start()  {
 		})
 	}
 	{
-		g.Add(func() error {
+		g.Add(func() error {		//this is for sending messages on the network
 			r.wg.Add(1)
 			r.networkSender()
 			r.wg.Done()
@@ -332,7 +325,7 @@ func (r *remoteNode) start()  {
 		})
 	}
 	{
-		g.Add(func() error {
+		g.Add(func() error {		//this is for gracefully bringing down this remoteNode
 			r.wg.Wait()
 			r.tearDown()
 			return errors.New("terminating tearDown")
@@ -349,7 +342,7 @@ func (r *remoteNode) start()  {
 
 //join a cluster. this will be called if 'join' in the config is set to true
 func (r *remoteNode) join() {
-	utils.Info(r.logger, "joining remote node via "+r.config.IpAddress)
+	utils.Info(r.logger, "joining remote node via " + r.config.IpAddress)
 
 	go func() { //goroutine will try to connect to the cluster until it succeeds or max tries reached
 		r.setState(nodeStateConnecting)
@@ -534,38 +527,7 @@ func (r *remoteNode) handleMessage() {
 }
 
 
-//message handler
-func (r *remoteNode) handleMessagePlain(msg *message.NodeWireMessage) {
-
-	{
-		switch msg.Code {
-		case message.MsgVERIFY:
-			r.handleVerify(msg)
-		case message.MsgVERIFYOK:
-			r.handleVerifyOK()
-		case message.MsgPING:
-			r.handlePing()
-		case message.MsgPONG:
-			r.handlePong()
-		case message.MsgSyncRsp:
-			r.handleSyncResponse(msg)
-		case message.MsgSyncReq:
-			r.handleSyncRequest(msg)
-		case message.MsgGETReq:
-			r.handleGetRequest(msg)
-		case message.MsgGETRsp:
-			r.handleGetResponse(msg)
-		case message.MsgPUT:
-			r.handlePut(msg)
-		case message.MsgDEL:
-			r.handleDelete(msg)
-		}
-	}
-
-}
-
-
-//send a verify messge. this is always the first message to be sent once a connection is established.
+//send a verify message. this is always the first message to be sent once a connection is established.
 func (r *remoteNode) sendVerify() {
 	verifyMsgRsp := message.VerifyMessage{Id: r.parentNode.config.Id,
 		ServicePort: strconv.Itoa(r.parentNode.config.LocalPort), Mode: r.parentNode.mode}
