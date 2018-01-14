@@ -189,7 +189,7 @@ in the event of a disconnection, you will have to set `config.ReconnectOnDisconn
 
 #### Logging within the library
 
-clusteredBigCache take a second parameter is its New() function for logging.
+clusteredBigCache takes a second parameter is its New() function for logging.
 This function expects an interface of 
 ```go
 type AppLogger interface {
@@ -201,12 +201,37 @@ type AppLogger interface {
 ```
 
 You could easily just wrap any logger within a `struct` and provide this interface method for that struct and simple
-delegate calls to the underlining logger.
+delegate calls to the underlining logger or better still just wrap a logger function to provide the interface like example bellow
+
+```go
+type myLogger func(...interface{})
+
+func (log myLogger) Info(msg string)  {
+	log(msg)
+}
+
+func (log myLogger) Warn(msg string)  {
+	log(msg)
+}
+
+func (log myLogger) Error(msg string)  {
+	log(msg)
+}
+
+func (log myLogger) Critical(msg string)  {
+	log(msg)
+}
+
+
+cache := clusteredBigCache.New(config, myLogger(log.Println))
+
+```
 
 ### Using Passive client
 Passive client are nodes in the clusteredBigCache network that do not store any data locally but functions all the same 
-like every other node. To create a passive client you simply call `clusteredBigCache.NewPassiveClient("localhost:9090", 2040, nil)`
-This will connect to an existing cluster at address *localhost:9090* and join the cluster. Every other function can be performed
+like every other node. To create a passive client you simply call `clusteredBigCache.NewPassiveClient("linux_box_100","localhost:9090", 8885, 0, 0, 0, nil)`
+This will connect to an existing cluster at address *localhost:9090* and join the cluster. the *linux_box_100* is the node's id.
+This can be an empty string if you want an auto generated id. Every other function can be performed
 on the returned object.  
 
 ##### credits
