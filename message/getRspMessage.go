@@ -7,7 +7,7 @@ import (
 type GetRspMessage struct {
 	Code       uint16 `json:"code"`
 	PendingKey string `json:"pending_key"`
-	Data       []byte `json:"data""`
+	Data       []byte `json:"data"`
 }
 
 func (gm *GetRspMessage) Serialize() *NodeWireMessage {
