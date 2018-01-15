@@ -6,7 +6,7 @@ type VerifyMessage struct {
 	Id          string `json:"id"`
 	Version     string `json:"version"`
 	ServicePort string `json:"service_port"`
-	Mode 		byte   `json:"mode"`
+	Mode        byte   `json:"mode"`
 }
 
 func (vm *VerifyMessage) Serialize() *NodeWireMessage {

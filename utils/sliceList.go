@@ -6,8 +6,8 @@ import (
 )
 
 type SliceList struct {
-	items	*sync.Map
-	size  	int32
+	items *sync.Map
+	size  int32
 }
 
 func NewSliceList() *SliceList {
@@ -59,4 +59,3 @@ func (list *SliceList) Values() []interface{} {
 func (list *SliceList) Keys() *sync.Map {
 	return list.items
 }
-

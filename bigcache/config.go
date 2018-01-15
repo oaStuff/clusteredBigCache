@@ -66,6 +66,6 @@ func (c Config) maximumShardSize() int {
 	return maxShardSize
 }
 
-func (c *Config) SetShard(num int)  {
+func (c *Config) SetShard(num int) {
 	c.Shards = num
 }

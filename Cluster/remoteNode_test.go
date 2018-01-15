@@ -1,12 +1,12 @@
 package clusteredBigCache
 
 import (
+	"github.com/oaStuff/clusteredBigCache/utils"
 	"testing"
 	"time"
-	"github.com/oaStuff/clusteredBigCache/utils"
 )
 
-func TestCheckConfig(t *testing.T)  {
+func TestCheckConfig(t *testing.T) {
 	config := &remoteNodeConfig{}
 	checkConfig(nil, config)
 
@@ -23,7 +23,7 @@ func TestCheckConfig(t *testing.T)  {
 	}
 }
 
-func TestRemoteNode(t *testing.T)  {
+func TestRemoteNode(t *testing.T) {
 
 	svr := utils.NewTestServer(9091, true)
 	svr.Start()
@@ -47,7 +47,7 @@ func TestRemoteNode(t *testing.T)  {
 	defer rn.tearDown()
 
 	svr.SendVerifyMessage("server1")
-	time.Sleep(time.Second * 1)
+	time.Sleep(time.Millisecond * 300)
 	if rn.state != nodeStateConnected {
 		t.Error("node ought to be in connected state")
 	}
@@ -59,20 +59,22 @@ func TestRemoteNode(t *testing.T)  {
 	if node.remoteNodes.Values()[0].(*remoteNode).config.Id != "server1" {
 		t.Error("unknown id in remoteNode data")
 	}
+
+	rn.shutDown()
+	node.ShutDown()
 }
 
-func TestNoPingResponseDisconnt(t *testing.T)  {
-	s := utils.NewTestServer(9092, false)
-	err := s.Start()
+func TestNoPingResponseDisconnt(t *testing.T) {
+	svr := utils.NewTestServer(9092, false)
+	err := svr.Start()
 	if err != nil {
 		panic(err)
 	}
-	defer s.Close()
-
+	defer svr.Close()
 
 	node := New(&ClusteredBigCacheConfig{LocalPort: 9999, ConnectRetries: 2}, nil)
 	rn := newRemoteNode(&remoteNodeConfig{IpAddress: "localhost:9092", Sync: false,
-			PingFailureThreshHold: 1, PingInterval: 0}, node, nil)
+		PingFailureThreshHold: 1, PingInterval: 0}, node, nil)
 	err = rn.connect()
 	if err != nil {
 		t.Error(err)
@@ -85,6 +87,7 @@ func TestNoPingResponseDisconnt(t *testing.T)  {
 
 	rn.start()
 	defer rn.tearDown()
+	svr.SendVerifyMessage("server_1")
 
 	time.Sleep(time.Second * 6)
 	if rn.state != nodeStateDisconnected {
@@ -95,7 +98,46 @@ func TestNoPingResponseDisconnt(t *testing.T)  {
 		t.Error("pong ought not to have been recieved")
 	}
 
-	if rn.metrics.dropedMsg == 0 {
+	rn.shutDown()
+	node.ShutDown()
+}
+
+func TestPinging(t *testing.T) {
+	s := utils.NewTestServer(8999, true)
+	err := s.Start()
+	if err != nil {
+		panic(err)
+	}
+	defer s.Close()
+
+	node := New(&ClusteredBigCacheConfig{LocalPort: 8999, ConnectRetries: 2, PingTimeout: 1, PingInterval: 2}, nil)
+	time.Sleep(time.Millisecond * 200)
+	rn := newRemoteNode(&remoteNodeConfig{IpAddress: "localhost:8999", Sync: true,
+		PingFailureThreshHold: 10, PingInterval: 2, PingTimeout: 1}, node, nil)
+	err = rn.connect()
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if rn.state != nodeStateHandshake {
+		t.Error("node ought to be in handshaking state")
+	}
+
+	rn.start()
+	defer rn.tearDown()
+	s.SendVerifyMessage("server1")
+
+	time.Sleep(time.Second * 3)
+
+	if rn.metrics.pongRecieved < 1 {
+		t.Error("pong ought to have been recieved")
+	}
+
+	if rn.metrics.pingRecieved < 1 {
 		t.Error("pinging facility not working approprately")
 	}
+
+	rn.shutDown()
+	node.ShutDown()
 }

@@ -93,7 +93,7 @@ func (c *Connection) Read(p []byte) (int, error) {
 	return n, err
 }
 
-func (c *Connection) Write(data []byte) (int, error)  {
+func (c *Connection) Write(data []byte) (int, error) {
 	if !c.Usable {
 		return 0, errConnectionUnusable
 	}

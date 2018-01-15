@@ -1,13 +1,13 @@
 package message
 
 import (
+	"reflect"
 	"testing"
 	"time"
-	"reflect"
 )
 
 func TestPutMessage(t *testing.T) {
-	msg := PutMessage{Code:MsgPUT, Expiry: uint64(time.Now().Unix()), Key: "key_1", Data: []byte("data_A")}
+	msg := PutMessage{Code: MsgPUT, Expiry: uint64(time.Now().Unix()), Key: "key_1", Data: []byte("data_A")}
 	newMsg := PutMessage{}
 	newMsg.DeSerialize(msg.Serialize())
 	if !reflect.DeepEqual(msg, newMsg) {
@@ -25,7 +25,7 @@ func TestSyncReqMessage(t *testing.T) {
 }
 
 func TestSyncRspMessage(t *testing.T) {
-	msg := SyncRspMessage{Code:MsgSyncRsp, List:[]ProposedPeer{
+	msg := SyncRspMessage{Code: MsgSyncRsp, List: []ProposedPeer{
 		{Id: "id_1", IpAddress: "192.168.56.1"},
 		{Id: "id_2", IpAddress: "192.168.56.2"},
 		{Id: "id_3", IpAddress: "192.168.56.3"},
@@ -68,7 +68,7 @@ func TestGetReqMessage(t *testing.T) {
 }
 
 func TestGetRspMessage(t *testing.T) {
-	msg := GetRspMessage{Code: MsgGETRsp, PendingKey: "pending_key_5",Data: []byte("data_5")}
+	msg := GetRspMessage{Code: MsgGETRsp, PendingKey: "pending_key_5", Data: []byte("data_5")}
 	newMsg := GetRspMessage{}
 	newMsg.DeSerialize(msg.Serialize())
 	if !reflect.DeepEqual(msg, newMsg) {

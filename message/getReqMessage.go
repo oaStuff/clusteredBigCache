@@ -3,11 +3,10 @@ package message
 import "encoding/json"
 
 type GetReqMessage struct {
-	Code		uint16		`json:"code"`
-	Key			string		`json:"key"`
-	PendingKey	string		`json:"pending_key"`
+	Code       uint16 `json:"code"`
+	Key        string `json:"key"`
+	PendingKey string `json:"pending_key"`
 }
-
 
 func (gm *GetReqMessage) Serialize() *NodeWireMessage {
 	gm.Code = MsgGETReq
@@ -18,5 +17,3 @@ func (gm *GetReqMessage) Serialize() *NodeWireMessage {
 func (gm *GetReqMessage) DeSerialize(msg *NodeWireMessage) {
 	json.Unmarshal(msg.Data, gm)
 }
-
-

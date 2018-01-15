@@ -4,7 +4,6 @@ import (
 	"testing"
 )
 
-
 func TestSliceList_Add(t *testing.T) {
 	sl := NewSliceList()
 	sl.Add(12, "value")
@@ -17,7 +16,7 @@ func TestSliceList_Add(t *testing.T) {
 	}
 }
 
-func TestSlice_Index(t *testing.T)  {
+func TestSlice_Index(t *testing.T) {
 	sl := NewSliceList()
 	sl.Add(0, "value")
 	if data, ok := sl.Get(0); !ok && "value" != data {
@@ -25,7 +24,7 @@ func TestSlice_Index(t *testing.T)  {
 	}
 }
 
-func TestSliceList_Remove(t *testing.T)  {
+func TestSliceList_Remove(t *testing.T) {
 	sl := NewSliceList()
 	sl.Add(12, 12)
 	sl.Add(44, 44)
@@ -37,7 +36,7 @@ func TestSliceList_Remove(t *testing.T)  {
 	}
 }
 
-func TestSliceList_Size(t *testing.T)  {
+func TestSliceList_Size(t *testing.T) {
 	sl := NewSliceList()
 	sl.Add(12, 12)
 	if sl.size != 1 {
