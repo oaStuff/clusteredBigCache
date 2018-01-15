@@ -2,8 +2,8 @@ package utils
 
 import (
 	"math/rand"
-	"time"
 	"sync"
+	"time"
 )
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"

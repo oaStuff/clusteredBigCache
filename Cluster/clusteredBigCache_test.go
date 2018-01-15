@@ -1,12 +1,12 @@
 package clusteredBigCache
 
 import (
+	"github.com/oaStuff/clusteredBigCache/utils"
 	"testing"
 	"time"
-	"github.com/oaStuff/clusteredBigCache/utils"
 )
 
-func TestNodeConnecting(t *testing.T)  {
+func TestNodeConnecting(t *testing.T) {
 
 	s := utils.NewTestServer(9093, true)
 	err := s.Start()
@@ -42,7 +42,7 @@ func TestNodeConnecting(t *testing.T)  {
 
 }
 
-func TestVerifyRemoteNode(t *testing.T)  {
+func TestVerifyRemoteNode(t *testing.T) {
 
 	node := New(&ClusteredBigCacheConfig{Join: true, LocalPort: 9999, ConnectRetries: 0}, nil)
 	rn := newRemoteNode(&remoteNodeConfig{IpAddress: "localhost:9092", Sync: false,
@@ -65,7 +65,7 @@ func TestVerifyRemoteNode(t *testing.T)  {
 	node.ShutDown()
 }
 
-func TestBringingUpNode(t *testing.T)  {
+func TestBringingUpNode(t *testing.T) {
 
 	node := New(&ClusteredBigCacheConfig{Join: false, LocalPort: 1799, ConnectRetries: 0}, nil)
 	if err := node.Start(); err != nil {
@@ -75,17 +75,16 @@ func TestBringingUpNode(t *testing.T)  {
 	node.ShutDown()
 }
 
-func TestPutData(t *testing.T)  {
+func TestPutData(t *testing.T) {
 	node1 := New(&ClusteredBigCacheConfig{Join: false, LocalPort: 1989, ConnectRetries: 0}, nil)
-	node2 := New(&ClusteredBigCacheConfig{Join: true, LocalPort: 1998, JoinIp:"localhost:1989", ConnectRetries: 2}, nil)
-
+	node2 := New(&ClusteredBigCacheConfig{Join: true, LocalPort: 1998, JoinIp: "localhost:1989", ConnectRetries: 2}, nil)
 
 	node1.Start()
 	node2.Start()
 
-	node1.Put("key_1", []byte("data_1"), time.Minute * 1)
+	node1.Put("key_1", []byte("data_1"), time.Minute*1)
 	time.Sleep(time.Millisecond * 200)
-	result, err := node2.Get("key_1", time.Millisecond * 200)
+	result, err := node2.Get("key_1", time.Millisecond*200)
 	if err != nil {
 		t.Error(err)
 	}
@@ -96,7 +95,7 @@ func TestPutData(t *testing.T)  {
 
 	node2.Delete("key_1")
 	time.Sleep(time.Millisecond * 200)
-	result, err = node1.Get("key_1", time.Millisecond * 200)
+	result, err = node1.Get("key_1", time.Millisecond*200)
 	if err == nil {
 		t.Error("error ought to be not found because the key and its data has been deleted")
 	}
@@ -105,17 +104,16 @@ func TestPutData(t *testing.T)  {
 	node2.ShutDown()
 }
 
-func TestPutDataWithPassiveClient(t *testing.T)  {
+func TestPutDataWithPassiveClient(t *testing.T) {
 	node1 := New(&ClusteredBigCacheConfig{Join: false, LocalPort: 1979, ConnectRetries: 0}, nil)
-	node2 := NewPassiveClient("testMachine","localhost:1979", 1898, 5, 3, 10, nil)
-
+	node2 := NewPassiveClient("testMachine", "localhost:1979", 1898, 5, 3, 10, nil)
 
 	node1.Start()
 	node2.Start()
 
-	node1.Put("key_1", []byte("data_1"), time.Minute * 1)
+	node1.Put("key_1", []byte("data_1"), time.Minute*1)
 	time.Sleep(time.Millisecond * 200)
-	result, err := node2.Get("key_1", time.Millisecond * 200)
+	result, err := node2.Get("key_1", time.Millisecond*200)
 
 	if err != nil {
 		t.Error(err)
@@ -127,17 +125,17 @@ func TestPutDataWithPassiveClient(t *testing.T)  {
 
 	node2.Delete("key_1")
 	time.Sleep(time.Millisecond * 200)
-	result, err = node1.Get("key_1", time.Millisecond * 200)
+	result, err = node1.Get("key_1", time.Millisecond*200)
 	if err == nil {
 		t.Error("error ought to be found because the key and its data has been deleted")
 	}
 
-	node2.Put("key_2", []byte("data_2"), time.Minute * 1)
-	node2.Put("key_3", []byte("data_3"), time.Minute * 1)
+	node2.Put("key_2", []byte("data_2"), time.Minute*1)
+	node2.Put("key_3", []byte("data_3"), time.Minute*1)
 	node2.Put("key_4", []byte("data_4"), 0)
 	node2.Put("key_45", []byte("data_5"), 0)
 	time.Sleep(time.Millisecond * 200)
-	result, err = node1.Get("key_2", time.Millisecond * 200)
+	result, err = node1.Get("key_2", time.Millisecond*200)
 
 	if err != nil {
 		t.Error(err)
@@ -151,13 +149,12 @@ func TestPutDataWithPassiveClient(t *testing.T)  {
 	node2.ShutDown()
 }
 
-func TestPassiveMode(t *testing.T)  {
+func TestPassiveMode(t *testing.T) {
 
 	node1 := New(&ClusteredBigCacheConfig{Join: false, LocalPort: 1959, ConnectRetries: 2}, nil)
 
-	client1 := NewPassiveClient("testMachine_1","localhost:1959", 1897, 5, 3, 10,nil)
-	client2 := NewPassiveClient("testMachine_2","localhost:1897", 1996, 5, 3, 10,nil)
-
+	client1 := NewPassiveClient("testMachine_1", "localhost:1959", 1897, 5, 3, 10, nil)
+	client2 := NewPassiveClient("testMachine_2", "localhost:1897", 1996, 5, 3, 10, nil)
 
 	node1.Start()
 	client1.Start()
@@ -174,9 +171,9 @@ func TestPassiveMode(t *testing.T)  {
 }
 
 func TestBadShardConfig(t *testing.T) {
-	defer func() {recover()}()
+	defer func() { recover() }()
 
-	node1 := New(&ClusteredBigCacheConfig{Join: false, LocalPort: 1659, ConnectRetries: 2, ShardSize:19}, nil)
+	node1 := New(&ClusteredBigCacheConfig{Join: false, LocalPort: 1659, ConnectRetries: 2, ShardSize: 19}, nil)
 	err := node1.Start()
 	if err == nil {
 		t.Error("node ought to fail because of bad configuration")
@@ -185,9 +182,9 @@ func TestBadShardConfig(t *testing.T) {
 }
 
 func TestBadPortConfig(t *testing.T) {
-	defer func() {recover()}()
+	defer func() { recover() }()
 
-	node1 := New(&ClusteredBigCacheConfig{Join: false, LocalPort: 0, ConnectRetries: 0, ShardSize:10}, nil)
+	node1 := New(&ClusteredBigCacheConfig{Join: false, LocalPort: 0, ConnectRetries: 0, ShardSize: 10}, nil)
 	err := node1.Start()
 	if err == nil {
 		t.Error("node ought to fail because of bad configuration")
@@ -196,10 +193,10 @@ func TestBadPortConfig(t *testing.T) {
 }
 
 func TestSamePortError(t *testing.T) {
-	defer func() {recover()}()
+	defer func() { recover() }()
 
-	node1 := New(&ClusteredBigCacheConfig{Join: false, LocalPort: 2048, ConnectRetries: 0, ShardSize:10}, nil)
-	node2 := New(&ClusteredBigCacheConfig{Join: false, LocalPort: 2048, ConnectRetries: 0, ShardSize:10}, nil)
+	node1 := New(&ClusteredBigCacheConfig{Join: false, LocalPort: 2048, ConnectRetries: 0, ShardSize: 10}, nil)
+	node2 := New(&ClusteredBigCacheConfig{Join: false, LocalPort: 2048, ConnectRetries: 0, ShardSize: 10}, nil)
 
 	node1.Start()
 	node2.Start()
@@ -212,8 +209,7 @@ func TestSamePortError(t *testing.T) {
 
 func TestClusteredBigCache_Statistics(t *testing.T) {
 	node1 := New(&ClusteredBigCacheConfig{Join: false, LocalPort: 1179, ConnectRetries: 0}, nil)
-	node2 := NewPassiveClient("testMachine","localhost:1979", 2898, 5, 3, 10, nil)
-
+	node2 := NewPassiveClient("testMachine", "localhost:1979", 2898, 5, 3, 10, nil)
 
 	node1.Start()
 	node2.Start()

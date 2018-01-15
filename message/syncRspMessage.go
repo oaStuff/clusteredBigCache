@@ -3,9 +3,9 @@ package message
 import "encoding/json"
 
 type SyncRspMessage struct {
-	Code 				uint64         `json:"code"`
-	ReplicationFactor	int				`json:"replication_factor"`
-	List 				[]ProposedPeer `json:"list"`
+	Code              uint64         `json:"code"`
+	ReplicationFactor int            `json:"replication_factor"`
+	List              []ProposedPeer `json:"list"`
 }
 
 func (sc *SyncRspMessage) Serialize() *NodeWireMessage {

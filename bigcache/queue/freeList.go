@@ -7,18 +7,17 @@ import (
 
 //item that will trace free space in the parent slice
 type itemPos struct {
-	actualSize		int
-	parentIndex		int
+	actualSize  int
+	parentIndex int
 }
 
 type posArray []*itemPos
 
 //freelist data structure
 type freeList struct {
-	sizeList [8]posArray
+	sizeList  [8]posArray
 	indexTree *avltree.Tree
 }
-
 
 //create a new freeList
 func newFreeList() *freeList {
@@ -27,12 +26,11 @@ func newFreeList() *freeList {
 	}
 
 	for x := 0; x < 8; x++ {
-		fl.sizeList[x] = make(posArray,0, 256)
+		fl.sizeList[x] = make(posArray, 0, 256)
 	}
 
 	return fl
 }
-
 
 //add is to add an index of a parent slice along with its size into the freelist.
 //this is done by checking if previous items in the freelist is adjacent to the new one been added
@@ -63,7 +61,7 @@ func (list *freeList) add(index, size int) error {
 
 	//store it into the indexTree. both its start and end position
 	list.indexTree.Put(item.parentIndex, item)
-	list.indexTree.Put(item.parentIndex + item.actualSize - 1, item)
+	list.indexTree.Put(item.parentIndex+item.actualSize-1, item)
 	list.putIntoSizeList(item)
 
 	return nil
@@ -75,50 +73,50 @@ func (list *freeList) removeFromSizeList(v *itemPos) {
 	case v.actualSize < 64:
 		pos = listPos(v, list.sizeList[0])
 		if pos != -1 {
-			copy(list.sizeList[0][pos:], list.sizeList[0][(pos + 1):])
-			list.sizeList[0] = list.sizeList[0][:len(list.sizeList[0]) - 1]
+			copy(list.sizeList[0][pos:], list.sizeList[0][(pos+1):])
+			list.sizeList[0] = list.sizeList[0][:len(list.sizeList[0])-1]
 		}
 	case v.actualSize < 128:
 		pos = listPos(v, list.sizeList[1])
 		if pos != -1 {
-			copy(list.sizeList[1][pos:], list.sizeList[1][(pos + 1):])
-			list.sizeList[1] = list.sizeList[1][:len(list.sizeList[1]) - 1]
+			copy(list.sizeList[1][pos:], list.sizeList[1][(pos+1):])
+			list.sizeList[1] = list.sizeList[1][:len(list.sizeList[1])-1]
 		}
 	case v.actualSize < 256:
 		pos = listPos(v, list.sizeList[2])
 		if pos != -1 {
-			copy(list.sizeList[2][pos:], list.sizeList[2][(pos + 1):])
-			list.sizeList[2] = list.sizeList[2][:len(list.sizeList[2]) - 1]
+			copy(list.sizeList[2][pos:], list.sizeList[2][(pos+1):])
+			list.sizeList[2] = list.sizeList[2][:len(list.sizeList[2])-1]
 		}
 	case v.actualSize < 512:
 		pos = listPos(v, list.sizeList[3])
 		if pos != -1 {
-			copy(list.sizeList[3][pos:], list.sizeList[3][(pos + 1):])
-			list.sizeList[3] = list.sizeList[3][:len(list.sizeList[3]) - 1]
+			copy(list.sizeList[3][pos:], list.sizeList[3][(pos+1):])
+			list.sizeList[3] = list.sizeList[3][:len(list.sizeList[3])-1]
 		}
 	case v.actualSize < 1024:
 		pos = listPos(v, list.sizeList[4])
 		if pos != -1 {
-			copy(list.sizeList[4][pos:], list.sizeList[4][(pos + 1):])
-			list.sizeList[4] = list.sizeList[4][:len(list.sizeList[4]) - 1]
+			copy(list.sizeList[4][pos:], list.sizeList[4][(pos+1):])
+			list.sizeList[4] = list.sizeList[4][:len(list.sizeList[4])-1]
 		}
 	case v.actualSize < 2048:
 		pos = listPos(v, list.sizeList[5])
 		if pos != -1 {
-			copy(list.sizeList[5][pos:], list.sizeList[5][(pos + 1):])
-			list.sizeList[5] = list.sizeList[5][:len(list.sizeList[5]) - 1]
+			copy(list.sizeList[5][pos:], list.sizeList[5][(pos+1):])
+			list.sizeList[5] = list.sizeList[5][:len(list.sizeList[5])-1]
 		}
 	case v.actualSize < 4096:
 		pos = listPos(v, list.sizeList[6])
 		if pos != -1 {
-			copy(list.sizeList[6][pos:], list.sizeList[6][(pos + 1):])
-			list.sizeList[6] = list.sizeList[6][:len(list.sizeList[6]) - 1]
+			copy(list.sizeList[6][pos:], list.sizeList[6][(pos+1):])
+			list.sizeList[6] = list.sizeList[6][:len(list.sizeList[6])-1]
 		}
 	case v.actualSize > 4096:
 		pos = listPos(v, list.sizeList[7])
 		if pos != -1 {
-			copy(list.sizeList[7][pos:], list.sizeList[7][(pos + 1):])
-			list.sizeList[7] = list.sizeList[7][:len(list.sizeList[7]) - 1]
+			copy(list.sizeList[7][pos:], list.sizeList[7][(pos+1):])
+			list.sizeList[7] = list.sizeList[7][:len(list.sizeList[7])-1]
 		}
 	}
 }
@@ -191,10 +189,9 @@ func (list *freeList) find(size int) int {
 		}
 		if idx < 6 {
 			buckSize *= 2
-		}else {
+		} else {
 			buckSize = 4097
 		}
-
 
 	}
 
@@ -202,13 +199,13 @@ func (list *freeList) find(size int) int {
 }
 
 func (list *freeList) findInSizeList(idx int, size int, buckSize int) (int, bool) {
-	for x:=0; x < len(list.sizeList[idx]); x++ {
+	for x := 0; x < len(list.sizeList[idx]); x++ {
 		tmp := list.sizeList[idx][x]
 		if size <= tmp.actualSize {
 			list.indexTree.Remove(tmp.parentIndex)
 			if size == tmp.actualSize {
-				copy(list.sizeList[idx][x:], list.sizeList[idx][(x +1):])
-				list.sizeList[idx] = list.sizeList[idx][:len(list.sizeList[idx]) - 1]
+				copy(list.sizeList[idx][x:], list.sizeList[idx][(x+1):])
+				list.sizeList[idx] = list.sizeList[idx][:len(list.sizeList[idx])-1]
 				list.indexTree.Remove(tmp.actualSize + tmp.parentIndex - 1)
 				return tmp.parentIndex, true
 			} else {
@@ -220,9 +217,9 @@ func (list *freeList) findInSizeList(idx int, size int, buckSize int) (int, bool
 					return ret, true
 				} else {
 					list.indexTree.Remove(tmp.parentIndex + tmp.actualSize - 1)
-					copy(list.sizeList[idx][x:], list.sizeList[idx][(x +1):])
-					list.sizeList[idx] = list.sizeList[idx][:len(list.sizeList[idx]) - 1]
-					list.add(tmp.parentIndex + size , tmp.actualSize - size)
+					copy(list.sizeList[idx][x:], list.sizeList[idx][(x+1):])
+					list.sizeList[idx] = list.sizeList[idx][:len(list.sizeList[idx])-1]
+					list.add(tmp.parentIndex+size, tmp.actualSize-size)
 					return tmp.parentIndex, true
 				}
 			}

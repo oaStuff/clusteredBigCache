@@ -1,12 +1,12 @@
 package clusteredBigCache
 
 import (
+	"github.com/oaStuff/clusteredBigCache/utils"
 	"testing"
 	"time"
-	"github.com/oaStuff/clusteredBigCache/utils"
 )
 
-func TestCheckConfig(t *testing.T)  {
+func TestCheckConfig(t *testing.T) {
 	config := &remoteNodeConfig{}
 	checkConfig(nil, config)
 
@@ -23,7 +23,7 @@ func TestCheckConfig(t *testing.T)  {
 	}
 }
 
-func TestRemoteNode(t *testing.T)  {
+func TestRemoteNode(t *testing.T) {
 
 	svr := utils.NewTestServer(9091, true)
 	svr.Start()
@@ -64,7 +64,7 @@ func TestRemoteNode(t *testing.T)  {
 	node.ShutDown()
 }
 
-func TestNoPingResponseDisconnt(t *testing.T)  {
+func TestNoPingResponseDisconnt(t *testing.T) {
 	svr := utils.NewTestServer(9092, false)
 	err := svr.Start()
 	if err != nil {
@@ -72,10 +72,9 @@ func TestNoPingResponseDisconnt(t *testing.T)  {
 	}
 	defer svr.Close()
 
-
 	node := New(&ClusteredBigCacheConfig{LocalPort: 9999, ConnectRetries: 2}, nil)
 	rn := newRemoteNode(&remoteNodeConfig{IpAddress: "localhost:9092", Sync: false,
-			PingFailureThreshHold: 1, PingInterval: 0}, node, nil)
+		PingFailureThreshHold: 1, PingInterval: 0}, node, nil)
 	err = rn.connect()
 	if err != nil {
 		t.Error(err)
@@ -111,10 +110,10 @@ func TestPinging(t *testing.T) {
 	}
 	defer s.Close()
 
-	node := New(&ClusteredBigCacheConfig{LocalPort: 8999, ConnectRetries: 2, PingTimeout:1, PingInterval:2},nil )
+	node := New(&ClusteredBigCacheConfig{LocalPort: 8999, ConnectRetries: 2, PingTimeout: 1, PingInterval: 2}, nil)
 	time.Sleep(time.Millisecond * 200)
 	rn := newRemoteNode(&remoteNodeConfig{IpAddress: "localhost:8999", Sync: true,
-		PingFailureThreshHold: 10, PingInterval: 2, PingTimeout:1}, node, nil)
+		PingFailureThreshHold: 10, PingInterval: 2, PingTimeout: 1}, node, nil)
 	err = rn.connect()
 	if err != nil {
 		t.Error(err)
@@ -130,7 +129,6 @@ func TestPinging(t *testing.T) {
 	s.SendVerifyMessage("server1")
 
 	time.Sleep(time.Second * 3)
-
 
 	if rn.metrics.pongRecieved < 1 {
 		t.Error("pong ought to have been recieved")

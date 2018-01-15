@@ -1,11 +1,11 @@
 package bigcache
 
 import (
+	"github.com/emirpasic/gods/sets/hashset"
+	"github.com/oaStuff/clusteredBigCache/bigcache/queue"
 	"sync"
 	"sync/atomic"
-	"github.com/oaStuff/clusteredBigCache/bigcache/queue"
 	"time"
-	"github.com/emirpasic/gods/sets/hashset"
 )
 
 const NO_EXPIRY uint64 = 0
@@ -98,7 +98,6 @@ func (s *cacheShard) evictDel99(key string, hashedKey uint64) error {
 	return s.__del(key, hashedKey, true)
 }
 
-
 func (s *cacheShard) evictDel(timeStamp uint64, set *hashset.Set) error {
 	s.lock.Lock()
 
@@ -133,7 +132,6 @@ func (s *cacheShard) evictDel(timeStamp uint64, set *hashset.Set) error {
 
 	return nil
 }
-
 
 func (s *cacheShard) del(key string, hashedKey uint64) error {
 	return s.__del(key, hashedKey, false)
@@ -293,7 +291,6 @@ func (s *cacheShard) delete(index uint32) {
 //		s.lock.Unlock()
 //	}
 //}
-
 
 func initNewShard(config Config, callback onRemoveCallback, clock clock, num uint64) *cacheShard {
 	shard := &cacheShard{

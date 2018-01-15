@@ -3,8 +3,8 @@ package message
 import "encoding/json"
 
 type SyncReqMessage struct {
-	Code uint16		`json:"code"`
-	Mode byte		`json:"mode"`
+	Code uint16 `json:"code"`
+	Mode byte   `json:"mode"`
 }
 
 func (sc *SyncReqMessage) Serialize() *NodeWireMessage {

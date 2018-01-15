@@ -26,52 +26,51 @@ const (
 	clusterModePASSIVE
 )
 
-const CHAN_SIZE  = 1024 * 64
+const CHAN_SIZE = 1024 * 64
 
 var (
-	ErrNotEnoughReplica		=	errors.New("not enough replica")
-	ErrNotFound				= 	errors.New("data not found")
-	ErrTimedOut				= 	errors.New("not found as a result of timing out")
-	ErrNotStarted			=	errors.New("node not started, call Start()")
+	ErrNotEnoughReplica = errors.New("not enough replica")
+	ErrNotFound         = errors.New("data not found")
+	ErrTimedOut         = errors.New("not found as a result of timing out")
+	ErrNotStarted       = errors.New("node not started, call Start()")
 )
-
 
 //Cluster configuration
 type ClusteredBigCacheConfig struct {
-	Id             string   `json:"id"`
-	Join           bool     `json:"join"`
-	JoinIp         string   `json:"join_ip"`
-	LocalAddresses []string `json:"local_addresses"`
-	LocalPort      int      `json:"local_port"`
-	BindAll        bool     `json:"bind_all"`
-	ConnectRetries int      `json:"connect_retries"`
-	TerminateOnListenerExit	bool 	`json:"terminate_on_listener_exit"`
-	ReplicationMode	  byte	`json:"replication_mode"`
-	ReplicationFactor int `json:"replication_factor"`
-	WriteAck          bool   `json:"write_ack"`
-	DebugMode		  bool	`json:"debug_mode"`
-	DebugPort 		  int 	`json:"debug_port"`
-	ReconnectOnDisconnect	bool	`json:"reconnect_on_disconnect"`
-	PingFailureThreshHold int32  `json:"ping_failure_thresh_hold"`
-	PingInterval          int    `json:"ping_interval"`
-	PingTimeout           int    `json:"ping_timeout"`
-	ShardSize			  int 	 `json:"shard_size"`
+	Id                      string   `json:"id"`
+	Join                    bool     `json:"join"`
+	JoinIp                  string   `json:"join_ip"`
+	LocalAddresses          []string `json:"local_addresses"`
+	LocalPort               int      `json:"local_port"`
+	BindAll                 bool     `json:"bind_all"`
+	ConnectRetries          int      `json:"connect_retries"`
+	TerminateOnListenerExit bool     `json:"terminate_on_listener_exit"`
+	ReplicationMode         byte     `json:"replication_mode"`
+	ReplicationFactor       int      `json:"replication_factor"`
+	WriteAck                bool     `json:"write_ack"`
+	DebugMode               bool     `json:"debug_mode"`
+	DebugPort               int      `json:"debug_port"`
+	ReconnectOnDisconnect   bool     `json:"reconnect_on_disconnect"`
+	PingFailureThreshHold   int32    `json:"ping_failure_thresh_hold"`
+	PingInterval            int      `json:"ping_interval"`
+	PingTimeout             int      `json:"ping_timeout"`
+	ShardSize               int      `json:"shard_size"`
 }
 
 //Cluster definition
 type ClusteredBigCache struct {
-	config         *ClusteredBigCacheConfig
-	cache          *bigcache.BigCache
-	remoteNodes    *utils.SliceList
-	logger         utils.AppLogger
-	serverEndpoint net.Listener
-	joinQueue      chan *message.ProposedPeer
-	pendingConn    sync.Map
-	nodeIndex	   int
-	getRequestChan	chan *getRequestDataWrapper
-	replicationChan	chan *replicationMsg
-	state 			byte
-	mode 			byte
+	config          *ClusteredBigCacheConfig
+	cache           *bigcache.BigCache
+	remoteNodes     *utils.SliceList
+	logger          utils.AppLogger
+	serverEndpoint  net.Listener
+	joinQueue       chan *message.ProposedPeer
+	pendingConn     sync.Map
+	nodeIndex       int
+	getRequestChan  chan *getRequestDataWrapper
+	replicationChan chan *replicationMsg
+	state           byte
+	mode            byte
 }
 
 //create a new local node
@@ -89,17 +88,17 @@ func New(config *ClusteredBigCacheConfig, logger utils.AppLogger) *ClusteredBigC
 	}
 
 	return &ClusteredBigCache{
-		config:      config,
-		cache:       cache,
-		remoteNodes: utils.NewSliceList(),
-		logger:      logger,
-		joinQueue:   make(chan *message.ProposedPeer, 512),
-		pendingConn: sync.Map{},
-		nodeIndex: 	 0,
-		getRequestChan:	 make(chan *getRequestDataWrapper, CHAN_SIZE),
+		config:          config,
+		cache:           cache,
+		remoteNodes:     utils.NewSliceList(),
+		logger:          logger,
+		joinQueue:       make(chan *message.ProposedPeer, 512),
+		pendingConn:     sync.Map{},
+		nodeIndex:       0,
+		getRequestChan:  make(chan *getRequestDataWrapper, CHAN_SIZE),
 		replicationChan: make(chan *replicationMsg, CHAN_SIZE),
-		state: 			clusterStateStarting,
-		mode: 			clusterModeACTIVE,
+		state:           clusterStateStarting,
+		mode:            clusterModeACTIVE,
 	}
 }
 
@@ -117,23 +116,22 @@ func NewPassiveClient(id string, serverEndpoint string, localPort, pingInterval,
 	config.PingFailureThreshHold = pingFailureThreashold
 
 	return &ClusteredBigCache{
-		config:      config,
-		cache:       nil,
-		remoteNodes: utils.NewSliceList(),
-		logger:      logger,
-		joinQueue:   make(chan *message.ProposedPeer, 512),
-		pendingConn: sync.Map{},
-		nodeIndex: 	 0,
-		getRequestChan:	 make(chan *getRequestDataWrapper, CHAN_SIZE),
+		config:          config,
+		cache:           nil,
+		remoteNodes:     utils.NewSliceList(),
+		logger:          logger,
+		joinQueue:       make(chan *message.ProposedPeer, 512),
+		pendingConn:     sync.Map{},
+		nodeIndex:       0,
+		getRequestChan:  make(chan *getRequestDataWrapper, CHAN_SIZE),
 		replicationChan: make(chan *replicationMsg, CHAN_SIZE),
-		state: 			clusterStateStarting,
-		mode: 			clusterModePASSIVE,
+		state:           clusterStateStarting,
+		mode:            clusterModePASSIVE,
 	}
 }
 
-
 //check configuration values
-func (node *ClusteredBigCache) checkConfig()  {
+func (node *ClusteredBigCache) checkConfig() {
 	if node.config.LocalPort < 1 {
 		panic("Local port can not be zero.")
 	}
@@ -146,7 +144,7 @@ func (node *ClusteredBigCache) checkConfig()  {
 
 }
 
-func (node *ClusteredBigCache) setReplicationFactor(rf int)  {
+func (node *ClusteredBigCache) setReplicationFactor(rf int) {
 	if rf < 1 {
 		rf = 1
 	}
@@ -166,8 +164,7 @@ func (node *ClusteredBigCache) Start() error {
 	if "" == node.config.Id {
 		node.config.Id = utils.GenerateNodeId(32)
 	}
-	utils.Info(node.logger, "cluster node ID is " + node.config.Id)
-
+	utils.Info(node.logger, "cluster node ID is "+node.config.Id)
 
 	if err := node.bringNodeUp(); err != nil {
 		return err
@@ -212,12 +209,12 @@ func (node *ClusteredBigCache) joinCluster() error {
 	}
 
 	remoteNode := newRemoteNode(&remoteNodeConfig{IpAddress: node.config.JoinIp,
-												ConnectRetries: node.config.ConnectRetries,
-												Sync: true, ReconnectOnDisconnect: node.config.ReconnectOnDisconnect,
-												PingInterval: node.config.PingInterval,
-												PingTimeout: node.config.PingTimeout,
-												PingFailureThreshHold: node.config.PingFailureThreshHold},
-												node, node.logger)
+		ConnectRetries: node.config.ConnectRetries,
+		Sync:           true, ReconnectOnDisconnect: node.config.ReconnectOnDisconnect,
+		PingInterval:          node.config.PingInterval,
+		PingTimeout:           node.config.PingTimeout,
+		PingFailureThreshHold: node.config.PingFailureThreshHold},
+		node, node.logger)
 	remoteNode.join()
 	return nil
 }
@@ -226,8 +223,8 @@ func (node *ClusteredBigCache) joinCluster() error {
 func (node *ClusteredBigCache) bringNodeUp() error {
 
 	var err error
-	utils.Info(node.logger, "bringing up node " + node.config.Id)
-	node.serverEndpoint, err = net.Listen("tcp", ":" + strconv.Itoa(node.config.LocalPort))
+	utils.Info(node.logger, "bringing up node "+node.config.Id)
+	node.serverEndpoint, err = net.Listen("tcp", ":"+strconv.Itoa(node.config.LocalPort))
 	if err != nil {
 		utils.Error(node.logger, fmt.Sprintf("unable to Listen on port %d. [%s]", node.config.LocalPort, err.Error()))
 		return err
@@ -253,7 +250,7 @@ func (node *ClusteredBigCache) getRemoteNodes() []interface{} {
 func (node *ClusteredBigCache) eventVerifyRemoteNode(remoteNode *remoteNode) bool {
 
 	if node.remoteNodes.Contains(remoteNode.config.Id) {
-		utils.Warn(node.logger, "clusterBigCache already contains " + remoteNode.config.Id)
+		utils.Warn(node.logger, "clusterBigCache already contains "+remoteNode.config.Id)
 		return false
 	}
 
@@ -289,12 +286,12 @@ func (node *ClusteredBigCache) listen() {
 		//build a new remoteNode from this new connection
 		tcpConn := conn.(*net.TCPConn)
 		remoteNode := newRemoteNode(&remoteNodeConfig{IpAddress: tcpConn.RemoteAddr().String(),
-														ConnectRetries: node.config.ConnectRetries,
-														Sync: false, ReconnectOnDisconnect: false,
-														PingInterval: node.config.PingInterval,
-														PingTimeout: node.config.PingTimeout,
-														PingFailureThreshHold: node.config.PingFailureThreshHold},
-														node, node.logger)
+			ConnectRetries: node.config.ConnectRetries,
+			Sync:           false, ReconnectOnDisconnect: false,
+			PingInterval:          node.config.PingInterval,
+			PingTimeout:           node.config.PingTimeout,
+			PingFailureThreshHold: node.config.PingFailureThreshHold},
+			node, node.logger)
 		remoteNode.setState(nodeStateHandshake)
 		remoteNode.setConnection(comms.WrapConnection(tcpConn))
 		utils.Info(node.logger, fmt.Sprintf("new connection from remote '%s'", tcpConn.RemoteAddr().String()))
@@ -332,7 +329,7 @@ func (node *ClusteredBigCache) connectToExistingNodes() {
 		//we are here because we don't know this remote node
 		remoteNode := newRemoteNode(&remoteNodeConfig{IpAddress: value.IpAddress,
 			ConnectRetries: node.config.ConnectRetries,
-			Id: value.Id, Sync: false, ReconnectOnDisconnect: node.config.ReconnectOnDisconnect}, node, node.logger)
+			Id:             value.Id, Sync: false, ReconnectOnDisconnect: node.config.ReconnectOnDisconnect}, node, node.logger)
 		remoteNode.join()
 		node.pendingConn.Store(value.Id, value.IpAddress)
 	}
@@ -364,7 +361,7 @@ func (node *ClusteredBigCache) Put(key string, data []byte, duration time.Durati
 
 	//we are going to do full replication across the cluster
 	peers := node.remoteNodes.Values()
-	for x := 0; x < len(peers); x++ {	//just replicate serially from left to right
+	for x := 0; x < len(peers); x++ { //just replicate serially from left to right
 		if peers[x].(*remoteNode).mode == clusterModePASSIVE {
 			continue
 		}
@@ -396,8 +393,7 @@ func (node *ClusteredBigCache) Get(key string, timeout time.Duration) ([]byte, e
 	}
 	replyC := make(chan *getReplyData)
 	reqData := &getRequestData{key: key, randStr: utils.GenerateNodeId(8),
-									replyChan: replyC, done: make(chan struct{})}
-
+		replyChan: replyC, done: make(chan struct{})}
 
 	for _, peer := range peers {
 		if peer.(*remoteNode).mode == clusterModePASSIVE {
@@ -435,10 +431,8 @@ func (node *ClusteredBigCache) Delete(key string) error {
 		if peers[x].(*remoteNode).mode == clusterModePASSIVE {
 			continue
 		}
-		node.replicationChan <- &replicationMsg{r:peers[x].(*remoteNode), m: &message.DeleteMessage{Key: key}}
+		node.replicationChan <- &replicationMsg{r: peers[x].(*remoteNode), m: &message.DeleteMessage{Key: key}}
 	}
-
-
 
 	return nil
 }
@@ -465,4 +459,3 @@ func (node *ClusteredBigCache) replication() {
 		msg.r.sendMessage(msg.m)
 	}
 }
-

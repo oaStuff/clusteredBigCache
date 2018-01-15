@@ -3,8 +3,8 @@ package message
 import "encoding/json"
 
 type DeleteMessage struct {
-	Code	uint16		`json:"code"`
-	Key		string		`json:"key"`
+	Code uint16 `json:"code"`
+	Key  string `json:"key"`
 }
 
 func (dm *DeleteMessage) Serialize() *NodeWireMessage {
@@ -16,4 +16,3 @@ func (dm *DeleteMessage) Serialize() *NodeWireMessage {
 func (dm *DeleteMessage) DeSerialize(msg *NodeWireMessage) {
 	json.Unmarshal(msg.Data, dm)
 }
-

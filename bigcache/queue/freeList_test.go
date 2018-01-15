@@ -1,8 +1,8 @@
 package queue
 
 import (
-	"testing"
 	"math/rand"
+	"testing"
 )
 
 func TestFreeList_add(t *testing.T) {
@@ -17,14 +17,12 @@ func TestFreeList_add(t *testing.T) {
 		t.Error("sizeList index 4 should be 1 in length")
 	}
 
-	list.add(63,100)
+	list.add(63, 100)
 	if len(list.sizeList[0]) > 0 {
 		t.Error("sizeList index 0 should not be 1 in length")
 	}
 
-
 }
-
 
 func TestFreeList_find(t *testing.T) {
 	list := newFreeList()
@@ -38,7 +36,7 @@ func TestFreeList_find(t *testing.T) {
 		t.Error("sizeList index 4 should be 1 in length")
 	}
 
-	list.add(63,100)
+	list.add(63, 100)
 	if len(list.sizeList[0]) > 0 {
 		t.Error("sizeList index 0 should not be 1 in length")
 	}
@@ -60,11 +58,11 @@ var gList *freeList
 func init() {
 	gList = newFreeList()
 	for x := 0; x < 1024; x++ {
-		gList.add(x, rand.Intn(1024 * 1024 * 1024))
+		gList.add(x, rand.Intn(1024*1024*1024))
 	}
 }
 
-func BenchmarkFreelist(b *testing.B)  {
+func BenchmarkFreelist(b *testing.B) {
 
 	for x := 0; x < b.N; x++ {
 		gList.find(rand.Intn(1024 * 1024))

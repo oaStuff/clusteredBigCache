@@ -29,7 +29,7 @@ type BytesQueue struct {
 	headerBuffer    []byte
 	verbose         bool
 	initialCapacity int
-	freelist 		*freeList
+	freelist        *freeList
 }
 
 type queueError struct {
@@ -50,7 +50,7 @@ func NewBytesQueue(initialCapacity int, maxCapacity int, verbose bool) *BytesQue
 		rightMargin:     leftMarginIndex,
 		verbose:         verbose,
 		initialCapacity: initialCapacity,
-		freelist: 		 newFreeList(),
+		freelist:        newFreeList(),
 	}
 }
 
@@ -228,7 +228,7 @@ func (q *BytesQueue) Delete(index int) error {
 		return err
 	}
 
-	q.freelist.add(index, size + headerEntrySize)
+	q.freelist.add(index, size+headerEntrySize)
 	q.count--
 	return nil
 }

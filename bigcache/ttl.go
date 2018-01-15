@@ -107,7 +107,6 @@ func (ttl *ttlManager) eviction() {
 		ttl.treeLock.Unlock()
 		ttl.evict(key.(uint64), value)
 
-
 		for { //loop through to ensure all expired keys are removed in this single step
 
 			ttl.treeLock.Lock()
