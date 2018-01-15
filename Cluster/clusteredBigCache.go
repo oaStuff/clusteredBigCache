@@ -142,15 +142,8 @@ func (node *ClusteredBigCache) checkConfig()  {
 		node.config.ConnectRetries = 5
 	}
 
-	if node.config.ReplicationMode == REPLICATION_MODE_SHARD {
-		utils.Warn(node.logger, "replication mode SHARD not yet implemented, falling back to FULL REPLICATION")
-		node.config.ReplicationMode = REPLICATION_MODE_FULL_REPLICATE
-	}
+	node.config.ReplicationMode = REPLICATION_MODE_FULL_REPLICATE
 
-	if node.config.ReplicationMode == REPLICATION_MODE_SHARD && node.config.ReplicationFactor < 1 {
-		utils.Warn(node.logger, "Adjusting replication to 1 (no replication) because it was less than 1")
-		node.config.ReplicationFactor = 1
-	}
 }
 
 func (node *ClusteredBigCache) setReplicationFactor(rf int)  {
@@ -345,29 +338,11 @@ func (node *ClusteredBigCache) connectToExistingNodes() {
 	}
 }
 
-func (node *ClusteredBigCache) doShardReplication(key string, data []byte, duration time.Duration) error {
-	panic("shard replication not yet implemented")
-
-	if node.config.ReplicationFactor == 1 {
-		_, err := node.cache.Set(key, data, duration)
-		return err
-	}
-
-	if node.remoteNodes.Size() < int32(node.config.ReplicationFactor -1) {
-		return ErrNotEnoughReplica
-	}
-	return nil
-}
-
 //puts the data into the cluster
 func (node *ClusteredBigCache) Put(key string, data []byte, duration time.Duration) error {
 
 	if node.state != clusterStateStarted {
 		return ErrNotStarted
-	}
-
-	if node.config.ReplicationMode == REPLICATION_MODE_SHARD {
-		return node.doShardReplication(key, data, duration)
 	}
 
 	//store it locally first
