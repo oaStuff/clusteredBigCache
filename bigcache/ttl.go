@@ -41,11 +41,11 @@ func (ttl *ttlManager) put(timestamp uint64, cacheKey string) {
 		data.(*hashset.Set).Add(cacheKey)
 		return
 
-	} else {
-		set := hashset.New() //new value, create a hashset and use it
-		set.Add(cacheKey)
-		ttl.timeTree.Put(timestamp, set)
 	}
+
+	set := hashset.New() //new value, create a hashset and use it
+	set.Add(cacheKey)
+	ttl.timeTree.Put(timestamp, set)
 
 	if ttl.timeTree.Size() == 1 {
 		ttl.resetTimer(timestamp)

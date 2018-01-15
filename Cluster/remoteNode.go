@@ -326,7 +326,7 @@ func (r *remoteNode) networkConsumer() {
 
 		dataLength := binary.LittleEndian.Uint32(header) - 2 //subtracted 2 becos of message code
 		msgCode := binary.LittleEndian.Uint16(header[4:])
-		var data []byte = nil
+		var data []byte
 		if dataLength > 0 {
 			data, err = r.connection.ReadData(uint(dataLength), 0)
 			if nil != err {

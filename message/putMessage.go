@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 )
 
+//PutMessage is message struct for sending data across to a remoteNode
 type PutMessage struct {
 	Code   uint16 `json:"code"`
 	Key    string `json:"key"`
@@ -11,6 +12,7 @@ type PutMessage struct {
 	Data   []byte `json:"data"`
 }
 
+//Serialize put message to node wire message
 func (pm *PutMessage) Serialize() *NodeWireMessage {
 	msg := &NodeWireMessage{Code: MsgPUT}
 	bKey := []byte(pm.Key)
@@ -24,6 +26,7 @@ func (pm *PutMessage) Serialize() *NodeWireMessage {
 	return msg
 }
 
+//DeSerialize node wire message into put message
 func (pm *PutMessage) DeSerialize(msg *NodeWireMessage) {
 	pm.Code = MsgPUT
 	pm.Expiry = binary.LittleEndian.Uint64(msg.Data)

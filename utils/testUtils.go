@@ -9,27 +9,32 @@ import (
 	"time"
 )
 
+//TestClient represents a client endpoint in a network connection
 type TestClient struct {
 	conn           *net.TCPConn
 	respondToPings bool
 }
 
+//TestServer represents a server endpoint in a network connection
 type TestServer struct {
 	TestClient
 	port    int
 	started chan struct{}
 }
 
+//NewTestClient creates a new client connection
 func NewTestClient() *TestClient {
 	return &TestClient{}
 }
 
+//NewTestServer creates a server connection
 func NewTestServer(port int, respondToPings bool) *TestServer {
 	return &TestServer{port: port,
 		TestClient: TestClient{respondToPings: respondToPings},
 		started:    make(chan struct{})}
 }
 
+//Start starts up the network
 func (s *TestServer) Start() error {
 	l, err := net.Listen("tcp", net.JoinHostPort("", strconv.Itoa(s.port)))
 	if err != nil {
@@ -46,21 +51,23 @@ func (s *TestServer) Start() error {
 	return nil
 }
 
+//Close terminates the network connection
 func (c *TestClient) Close() {
 	if c.conn != nil {
 		c.conn.Close()
 	}
 }
 
-func (c *TestServer) SendVerifyMessage(id string) {
-	<-c.started
+//SendVerifyMessage send a verify message to remote peer
+func (s *TestServer) SendVerifyMessage(id string) {
+	<-s.started
 	verifyMsg := message.VerifyMessage{Id: id, ServicePort: "1111"}
 	wMsg := verifyMsg.Serialize()
 	d := make([]byte, 6+len(wMsg.Data))
 	binary.LittleEndian.PutUint32(d, uint32(len(wMsg.Data)+2)) //the 2 is for the message code
 	binary.LittleEndian.PutUint16(d[4:], wMsg.Code)
 	copy(d[6:], wMsg.Data)
-	c.conn.Write(d)
+	s.conn.Write(d)
 }
 
 func (c *TestClient) readNetwork() {
@@ -87,7 +94,7 @@ func (c *TestClient) readNetwork() {
 		length := binary.LittleEndian.Uint32(header)
 		code := binary.LittleEndian.Uint16(header[4:])
 
-		var data []byte = nil
+		var data []byte
 		if (length - 2) > 0 {
 			data = make([]byte, length-2)
 			_, err = c.conn.Read(data)

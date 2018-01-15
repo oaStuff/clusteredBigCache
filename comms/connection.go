@@ -15,7 +15,7 @@ var (
 	errTimeout            = errors.New("i/o timeout")
 )
 
-//defines a connection to a remote peer
+//Connection defines a connection to a remote peer
 type Connection struct {
 	Remote      string
 	Uid         string
@@ -26,8 +26,7 @@ type Connection struct {
 	writeLock   sync.Mutex
 }
 
-//Create a new tcp connection .
-//Connect to the remote entity
+//NewConnection Create a new tcp connection and connects to the remote entity
 func NewConnection(endpoint string, connectionTimeout time.Duration) (*Connection, error) {
 
 	c := &Connection{}
@@ -50,6 +49,7 @@ func NewConnection(endpoint string, connectionTimeout time.Duration) (*Connectio
 	return c, nil
 }
 
+//WrapConnection wraps a tcp conn pointer into this struct
 func WrapConnection(conn *net.TCPConn) *Connection {
 
 	c := &Connection{}
@@ -66,6 +66,7 @@ func WrapConnection(conn *net.TCPConn) *Connection {
 	return c
 }
 
+//SetReadTimeout set the connection read timeout
 func (c *Connection) SetReadTimeout(timeout time.Duration) {
 	c.readTimeout = timeout
 }
@@ -118,7 +119,7 @@ func (c *Connection) Write(data []byte) (int, error) {
 	return count, nil
 }
 
-//Send a []byte over the network
+//SendData sends a []byte over the network
 func (c *Connection) SendData(data []byte) error {
 
 	if !c.Usable {
@@ -145,7 +146,7 @@ func (c *Connection) SendData(data []byte) error {
 	return nil
 }
 
-//Read size byte of data and return is to the caller
+//ReadData reads size byte of data and return is to the caller
 func (c *Connection) ReadData(size uint, timeout time.Duration) ([]byte, error) {
 
 	ret := make([]byte, size)
@@ -176,10 +177,12 @@ func (c *Connection) ReadData(size uint, timeout time.Duration) ([]byte, error) 
 	}
 }
 
+//Close calls shutdown on this struct
 func (c *Connection) Close() {
 	c.Shutdown()
 }
 
+//Shutdown closes the network connection
 func (c *Connection) Shutdown() {
 	c.conn.Close()
 	c.buffReader = nil

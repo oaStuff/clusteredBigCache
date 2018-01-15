@@ -14,6 +14,7 @@ import (
 	"time"
 )
 
+//Constants used to specify various conditions and state withing the system
 const (
 	REPLICATION_MODE_FULL_REPLICATE byte = iota
 	REPLICATION_MODE_SHARD
@@ -26,8 +27,10 @@ const (
 	clusterModePASSIVE
 )
 
+//Channel size for all defined channels
 const CHAN_SIZE = 1024 * 64
 
+//Global errors that can be returned to callers
 var (
 	ErrNotEnoughReplica = errors.New("not enough replica")
 	ErrNotFound         = errors.New("data not found")
@@ -57,7 +60,7 @@ type ClusteredBigCacheConfig struct {
 	ShardSize               int      `json:"shard_size"`
 }
 
-//Cluster definition
+//ClusteredBigCache definition
 type ClusteredBigCache struct {
 	config          *ClusteredBigCacheConfig
 	cache           *bigcache.BigCache
@@ -73,7 +76,7 @@ type ClusteredBigCache struct {
 	mode            byte
 }
 
-//create a new local node
+//New creates a new local node
 func New(config *ClusteredBigCacheConfig, logger utils.AppLogger) *ClusteredBigCache {
 
 	cfg := bigcache.DefaultConfig()
@@ -102,7 +105,7 @@ func New(config *ClusteredBigCacheConfig, logger utils.AppLogger) *ClusteredBigC
 	}
 }
 
-//create a new local node that does not store any data locally
+//NewPassiveClient creates a new local node that does not store any data locally
 func NewPassiveClient(id string, serverEndpoint string, localPort, pingInterval, pingTimeout int, pingFailureThreashold int32, logger utils.AppLogger) *ClusteredBigCache {
 
 	config := DefaultClusterConfig()
@@ -152,7 +155,7 @@ func (node *ClusteredBigCache) setReplicationFactor(rf int) {
 	node.config.ReplicationFactor = rf
 }
 
-//start this Cluster running
+//Start this Cluster running
 func (node *ClusteredBigCache) Start() error {
 
 	for x := 0; x < 5; x++ {
@@ -182,7 +185,7 @@ func (node *ClusteredBigCache) Start() error {
 	return nil
 }
 
-//shut down this Cluster and all terminate all connections to remoteNodes
+//ShutDown shuts this Cluster and all terminate all connections to remoteNodes
 func (node *ClusteredBigCache) ShutDown() {
 
 	node.state = clusterStateEnded
@@ -335,7 +338,7 @@ func (node *ClusteredBigCache) connectToExistingNodes() {
 	}
 }
 
-//puts the data into the cluster
+//Put adds data into the cluster
 func (node *ClusteredBigCache) Put(key string, data []byte, duration time.Duration) error {
 
 	if node.state != clusterStateStarted {
@@ -372,7 +375,7 @@ func (node *ClusteredBigCache) Put(key string, data []byte, duration time.Durati
 	return nil
 }
 
-//gets the data from the cluster
+//Get retrieves data from the cluster
 func (node *ClusteredBigCache) Get(key string, timeout time.Duration) ([]byte, error) {
 	if node.state != clusterStateStarted {
 		return nil, ErrNotStarted
@@ -413,7 +416,7 @@ func (node *ClusteredBigCache) Get(key string, timeout time.Duration) ([]byte, e
 	return replyData.data, nil
 }
 
-//delete a key from the cluster
+//Delete removes a key from the cluster
 func (node *ClusteredBigCache) Delete(key string) error {
 
 	if node.state != clusterStateStarted {
@@ -437,6 +440,7 @@ func (node *ClusteredBigCache) Delete(key string) error {
 	return nil
 }
 
+//Statistics returns the cache stats
 func (node *ClusteredBigCache) Statistics() string {
 	if node.mode == clusterModeACTIVE {
 		stats := node.cache.Stats()
