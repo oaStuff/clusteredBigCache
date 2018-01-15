@@ -95,7 +95,7 @@ func TestNoPingResponseDisconnt(t *testing.T) {
 	}
 
 	if rn.metrics.pongRecieved != 0 {
-		t.Error("pong ought not to have been recieved")
+		t.Error("pong ought not to have been received")
 	}
 
 	rn.shutDown()
@@ -131,7 +131,7 @@ func TestPinging(t *testing.T) {
 	time.Sleep(time.Second * 3)
 
 	if rn.metrics.pongRecieved < 1 {
-		t.Error("pong ought to have been recieved")
+		t.Error("pong ought to have been received")
 	}
 
 	if rn.metrics.pingRecieved < 1 {
