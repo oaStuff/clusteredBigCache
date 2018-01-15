@@ -208,20 +208,22 @@ func (list *freeList) findInSizeList(idx int, size int, buckSize int) (int, bool
 				list.sizeList[idx] = list.sizeList[idx][:len(list.sizeList[idx])-1]
 				list.indexTree.Remove(tmp.actualSize + tmp.parentIndex - 1)
 				return tmp.parentIndex, true
-			} else {
-				if (tmp.actualSize - size) >= buckSize {
-					ret := tmp.parentIndex
-					tmp.parentIndex += size
-					tmp.actualSize -= size
-					list.indexTree.Put(tmp.parentIndex, tmp)
-					return ret, true
-				} else {
-					list.indexTree.Remove(tmp.parentIndex + tmp.actualSize - 1)
-					copy(list.sizeList[idx][x:], list.sizeList[idx][(x+1):])
-					list.sizeList[idx] = list.sizeList[idx][:len(list.sizeList[idx])-1]
-					list.add(tmp.parentIndex+size, tmp.actualSize-size)
-					return tmp.parentIndex, true
-				}
+			}
+
+			if (tmp.actualSize - size) >= buckSize {
+				ret := tmp.parentIndex
+				tmp.parentIndex += size
+				tmp.actualSize -= size
+				list.indexTree.Put(tmp.parentIndex, tmp)
+				return ret, true
+			}
+
+			{
+				list.indexTree.Remove(tmp.parentIndex + tmp.actualSize - 1)
+				copy(list.sizeList[idx][x:], list.sizeList[idx][(x+1):])
+				list.sizeList[idx] = list.sizeList[idx][:len(list.sizeList[idx])-1]
+				list.add(tmp.parentIndex+size, tmp.actualSize-size)
+				return tmp.parentIndex, true
 			}
 		}
 	}

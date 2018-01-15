@@ -222,6 +222,7 @@ func (q *BytesQueue) availableSpaceBeforeHead() int {
 	return q.head - q.tail - minimumEmptyBlobSize
 }
 
+//Delete removes an index and associated values from the queue
 func (q *BytesQueue) Delete(index int) error {
 	_, size, err := q.peek(index)
 	if err != nil {

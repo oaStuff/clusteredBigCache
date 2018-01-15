@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+//NO_EXPIRY means data placed into a shard will never expire
 const NO_EXPIRY uint64 = 0
 
 type cacheShard struct {
@@ -92,12 +93,6 @@ func (s *cacheShard) set(key string, hashedKey uint64, entry []byte, duration ti
 	return 0, err
 }
 
-func (s *cacheShard) evictDel99(key string, hashedKey uint64) error {
-	//the lock is held in ttlManager so it is safe to do normal increment here
-	s.stats.EvictCount++
-	return s.__del(key, hashedKey, true)
-}
-
 func (s *cacheShard) evictDel(timeStamp uint64, set *hashset.Set) error {
 	s.lock.Lock()
 
@@ -134,10 +129,6 @@ func (s *cacheShard) evictDel(timeStamp uint64, set *hashset.Set) error {
 }
 
 func (s *cacheShard) del(key string, hashedKey uint64) error {
-	return s.__del(key, hashedKey, false)
-}
-
-func (s *cacheShard) __del(key string, hashedKey uint64, eviction bool) error {
 	s.lock.Lock()
 	itemIndex := s.hashmap[hashedKey]
 
@@ -159,10 +150,9 @@ func (s *cacheShard) __del(key string, hashedKey uint64, eviction bool) error {
 	resetKeyFromEntry(wrappedEntry)
 	s.delete(itemIndex)
 	s.lock.Unlock()
-	if !eviction {
-		timestamp := readTimestampFromEntry(wrappedEntry)
-		s.ttlTable.remove(timestamp, key)
-	}
+
+	timestamp := readTimestampFromEntry(wrappedEntry)
+	s.ttlTable.remove(timestamp, key)
 
 	s.delhit()
 	return nil

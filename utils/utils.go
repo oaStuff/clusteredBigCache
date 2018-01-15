@@ -16,6 +16,7 @@ const (
 var src = rand.NewSource(time.Now().UnixNano())
 var srcLock = sync.Mutex{}
 
+//GenerateNodeId generates a new unique id
 func GenerateNodeId(n int) string {
 	b := make([]byte, n)
 	srcLock.Lock()

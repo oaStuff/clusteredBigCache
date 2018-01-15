@@ -5,11 +5,13 @@ import (
 	"sync/atomic"
 )
 
+//SliceList represents a list of slices
 type SliceList struct {
 	items *sync.Map
 	size  int32
 }
 
+//NewSliceList creates a new list
 func NewSliceList() *SliceList {
 	return &SliceList{size: 0, items: &sync.Map{}}
 }
@@ -23,11 +25,13 @@ func (list *SliceList) Add(key, value interface{}) {
 	list.items.Store(key, value)
 }
 
+//Contains verifies if a key exist withing the list
 func (list *SliceList) Contains(key interface{}) bool {
 	_, ok := list.items.Load(key)
 	return ok
 }
 
+//Size returns the size of the list
 func (list *SliceList) Size() int32 {
 	return list.size
 }
@@ -40,10 +44,12 @@ func (list *SliceList) Remove(key interface{}) {
 	}
 }
 
+//Get returns the corresponding values of a key and true if it exists within the list
 func (list *SliceList) Get(key interface{}) (interface{}, bool) {
 	return list.items.Load(key)
 }
 
+//Values returns the values of every key in the list
 func (list *SliceList) Values() []interface{} {
 	newElements := make([]interface{}, 0, list.size)
 	list.items.Range(func(key, value interface{}) bool {
@@ -55,7 +61,7 @@ func (list *SliceList) Values() []interface{} {
 	return newElements
 }
 
-//TODO: take a good look at this
+//Keys returns the keys within the list
 func (list *SliceList) Keys() *sync.Map {
 	return list.items
 }

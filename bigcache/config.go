@@ -66,6 +66,7 @@ func (c Config) maximumShardSize() int {
 	return maxShardSize
 }
 
+//SetShard sets the number of shards
 func (c *Config) SetShard(num int) {
 	c.Shards = num
 }
