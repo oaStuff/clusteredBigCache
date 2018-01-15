@@ -95,7 +95,7 @@ func TestPutData(t *testing.T) {
 
 	node2.Delete("key_1")
 	time.Sleep(time.Millisecond * 200)
-	result, err = node1.Get("key_1", time.Millisecond*200)
+	_, err = node1.Get("key_1", time.Millisecond*200)
 	if err == nil {
 		t.Error("error ought to be not found because the key and its data has been deleted")
 	}

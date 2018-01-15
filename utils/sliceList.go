@@ -25,7 +25,7 @@ func (list *SliceList) Add(key, value interface{}) {
 	list.items.Store(key, value)
 }
 
-//Contains verifies if a key exist withing the list
+//Contains verifies if a key exist within the list
 func (list *SliceList) Contains(key interface{}) bool {
 	_, ok := list.items.Load(key)
 	return ok

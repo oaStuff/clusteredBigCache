@@ -26,7 +26,7 @@ type NodeMessage interface {
 	DeSerialize(msg *NodeWireMessage)
 }
 
-//ProposedPeers are used to represent peers that needs to be connected to
+//ProposedPeer are used to represent peers that needs to be connected to
 type ProposedPeer struct {
 	Id        string
 	IpAddress string

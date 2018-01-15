@@ -1,6 +1,6 @@
 package message
 
-//PongMessage is the struct for a ping reponse (pong)
+//PongMessage is the struct for a ping response (pong)
 type PongMessage struct {
 	code uint16
 }

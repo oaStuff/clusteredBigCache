@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-//Constants used to specify various conditions and state withing the system
+//Constants used to specify various conditions and state within the system
 const (
 	REPLICATION_MODE_FULL_REPLICATE byte = iota
 	REPLICATION_MODE_SHARD
@@ -27,7 +27,7 @@ const (
 	clusterModePASSIVE
 )
 
-//Channel size for all defined channels
+//CHAN_SIZE for all defined channels
 const CHAN_SIZE = 1024 * 64
 
 //Global errors that can be returned to callers
@@ -38,7 +38,7 @@ var (
 	ErrNotStarted       = errors.New("node not started, call Start()")
 )
 
-//Cluster configuration
+//ClusteredBigCacheConfig is configuration for the cache
 type ClusteredBigCacheConfig struct {
 	Id                      string   `json:"id"`
 	Join                    bool     `json:"join"`

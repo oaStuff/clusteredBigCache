@@ -23,7 +23,7 @@ type replicationMsg struct {
 	m message.NodeMessage
 }
 
-//DefualtClusterConfig creates a new default configuration
+//DefaultClusterConfig creates a new default configuration
 func DefaultClusterConfig() *ClusteredBigCacheConfig {
 
 	return &ClusteredBigCacheConfig{
