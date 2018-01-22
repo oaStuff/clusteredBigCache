@@ -1,6 +1,8 @@
 clusteredBigCache
 =================
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/oastuff/clusteredBigCache)](https://goreportcard.com/report/github.com/oastuff/clusteredBigCache)
+
 This is a library based on [bigcache](https://github.com/allegro/bigcache) with some modifications to support
 * clustering and
 * individual item expiration
@@ -239,7 +241,7 @@ Core cache system from [bigcache](https://github.com/allegro/bigcache)
 
 Data structures from [emirpasic](https://github.com/emirpasic/gods)
 
-# LICENSE
+### LICENSE
 MIT.
 
 
